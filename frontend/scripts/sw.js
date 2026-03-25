@@ -2,7 +2,7 @@ const CACHE_NAME = 'nutri-ai-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/../assets/style.css',
+  '/assets/style.css',
   'app.js',
   'manifest.json'
 ];

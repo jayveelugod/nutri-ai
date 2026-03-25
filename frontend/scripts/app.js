@@ -937,7 +937,9 @@ $(document).ready(function () {
 
         // --- VOICE INPUT ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
+        const isIOSPWA = window.navigator.standalone === true;
+        
+        if (SpeechRecognition && !isIOSPWA) {
             const recognition = new SpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -1017,6 +1019,9 @@ $(document).ready(function () {
             };
         } else {
             $('#voiceInputBtn').hide();
+            if (isIOSPWA) {
+                console.warn("Speech recognition is disabled on iOS PWA mode due to Apple restrictions.");
+            }
         }
 
         // --- BARCODE SCANNING (QuaggaJS) ---
