@@ -117,12 +117,15 @@ async function loadDashboard() {
         $('#goalCals').text(goalCals.toLocaleString());
 
         let dateFilterVal = $('#recentMealsDateFilter').val();
+
+        const todayD = new Date();
         if (!dateFilterVal) {
             // Default to today in YYYY-MM-DD
-            const todayD = new Date();
             dateFilterVal = todayD.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
             $('#recentMealsDateFilter').val(dateFilterVal);
         }
+
+        $('#recentMealsDateFilter').attr('max', todayD.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }));
 
         const logsRes = await fetchWithAuth(`${API_BASE_URL}/logs/?date=${dateFilterVal}`);
         const logs = await logsRes.json();
@@ -294,13 +297,13 @@ async function requestNotificationPermission() {
     if (Notification.permission === 'default') {
         try {
             await Notification.requestPermission();
-        } catch(e) { console.error(e); }
+        } catch (e) { console.error(e); }
     }
 }
 
 function showLocalNotification(title, body) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    
+
     // Prefer service worker showNotification for better mobile PWA support
     if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
         navigator.serviceWorker.ready.then(reg => {
@@ -315,9 +318,9 @@ function showLocalNotification(title, body) {
 
 function setupMealNotifications(reminders) {
     if (!('Notification' in window)) return;
-    
+
     const now = new Date();
-    
+
     Object.keys(reminders).forEach(meal => {
         const timeStr = reminders[meal];
         if (!timeStr) return;
@@ -367,7 +370,7 @@ async function loadReminders() {
             if (data.Breakfast) $('#remindBreakfast').text(data.Breakfast);
             if (data.Lunch) $('#remindLunch').text(data.Lunch);
             if (data.Dinner) $('#remindDinner').text(data.Dinner);
-            
+
             // Setup notifications if permission is granted
             if (Notification.permission === 'granted') {
                 setupMealNotifications(data);
@@ -386,7 +389,7 @@ $(document).ready(function () {
 
     if (window.location.pathname.includes('/index.html') || window.location.pathname === '/') {
         loadDashboard();
-        
+
         // Request notifications (usually better on user interact, but we ask here)
         requestNotificationPermission().then(() => {
             loadReminders();
@@ -938,7 +941,7 @@ $(document).ready(function () {
         // --- VOICE INPUT ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const isIOSPWA = window.navigator.standalone === true;
-        
+
         if (SpeechRecognition && !isIOSPWA) {
             const recognition = new SpeechRecognition();
             recognition.continuous = false;
@@ -980,7 +983,7 @@ $(document).ready(function () {
                 isListening = false;
                 $('#voiceInputBtn').removeClass('listening');
                 $('#voiceStatus').addClass('d-none');
-                
+
                 // Resume camera stream if it was playing
                 if (video && video.paused && localStream) {
                     video.play();
@@ -1002,7 +1005,7 @@ $(document).ready(function () {
                 console.error("Speech recognition error:", event.error);
                 $('#voiceInputBtn').removeClass('listening');
                 $('#voiceStatus').addClass('d-none');
-                
+
                 if (video && video.paused && localStream) {
                     video.play();
                 }
@@ -1157,7 +1160,7 @@ $(document).ready(function () {
                 $('#cameraStream').hide();
                 $('#captureBtn').hide();
                 $('#retakeBtn').removeClass('d-none');
-                
+
                 $('#textInputContainer').addClass('d-none');
             }
             reader.readAsDataURL(e.target.files[0]);
