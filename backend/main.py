@@ -5,8 +5,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import uvicorn
 import os
+import sys
 from datetime import datetime
 from typing import List, Optional
+
+# Vercel deployment fix: add current directory to sys.path so it can find sibling modules 
+# (auth, crud, models, etc.) even when invoked from the repository root.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import models
 import schemas
@@ -36,19 +41,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+@app.get("/api")
 def root():
     return {"message": "NutriAI Backend is running!"}
 
 # --- AUTH AND USERS ---
-@app.post("/users/", response_model=schemas.UserResponse)
+@app.post("/api/users/", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     return crud.create_user(db=db, user=user)
 
-@app.post("/login", response_model=schemas.Token)
+@app.post("/api/login", response_model=schemas.Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=form_data.username)
     if not user or not crud.verify_password(form_data.password, user.hashed_password):
@@ -60,11 +65,11 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/users/me", response_model=schemas.UserResponse)
+@app.get("/api/users/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
 
-@app.put("/users/me/update", response_model=schemas.UserResponse)
+@app.put("/api/users/me/update", response_model=schemas.UserResponse)
 def update_user_info(user_update: schemas.UserUpdate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     if user_update.email:
         # check if new email is already taken
@@ -75,7 +80,7 @@ def update_user_info(user_update: schemas.UserUpdate, current_user: models.User 
     updated_user = crud.update_user(db, user_id=current_user.id, user_update=user_update)
     return updated_user
 
-@app.put("/users/me/password")
+@app.put("/api/users/me/password")
 def update_password(pw_update: schemas.UserPasswordUpdate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     if not crud.verify_password(pw_update.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect current password")
@@ -87,7 +92,7 @@ class ForgotPasswordRequest(schemas.BaseModel):
     email: str
     new_password: str
 
-@app.post("/forgot-password")
+@app.post("/api/forgot-password")
 def forgot_password_immidiate_reset(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=request.email)
     if not user:
@@ -96,7 +101,7 @@ def forgot_password_immidiate_reset(request: ForgotPasswordRequest, db: Session 
     crud.update_user_password(db, user_id=user.id, new_password=request.new_password)
     return {"message": "Password reset successfully"}
 
-@app.delete("/users/me")
+@app.delete("/api/users/me")
 def delete_user_account(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     # Delete DB records and retrieve orphaned Vercel Blob URLs
     image_urls = crud.delete_user_data(db, user_id=current_user.id)
@@ -124,11 +129,11 @@ def delete_user_account(current_user: models.User = Depends(auth.get_current_use
     return {"message": "Account successfully deleted."}
 
 # --- MEDICAL PROFILE (SMART ONBOARDING) ---
-@app.post("/profile/", response_model=schemas.MedicalProfileResponse)
+@app.post("/api/profile/", response_model=schemas.MedicalProfileResponse)
 def update_profile(profile: schemas.MedicalProfileCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return crud.create_or_update_profile(db, user_id=current_user.id, profile=profile)
 
-@app.get("/profile/", response_model=schemas.MedicalProfileResponse)
+@app.get("/api/profile/", response_model=schemas.MedicalProfileResponse)
 def read_profile(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     db_profile = crud.get_medical_profile(db, user_id=current_user.id)
     if db_profile is None:
@@ -136,25 +141,25 @@ def read_profile(current_user: models.User = Depends(auth.get_current_user), db:
     return db_profile
 
 # --- WEIGHT HISTORY ---
-@app.post("/weight/", response_model=schemas.WeightHistoryResponse)
+@app.post("/api/weight/", response_model=schemas.WeightHistoryResponse)
 def log_weight(weight: schemas.WeightHistoryCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return crud.add_weight_log(db, user_id=current_user.id, weight=weight)
 
-@app.get("/weight/", response_model=List[schemas.WeightHistoryResponse])
+@app.get("/api/weight/", response_model=List[schemas.WeightHistoryResponse])
 def get_weight(limit: int = 30, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return crud.get_weight_history(db, user_id=current_user.id, limit=limit)
 
 # --- FOOD LOGGING ---
-@app.post("/logs/", response_model=schemas.FoodLogResponse)
+@app.post("/api/logs/", response_model=schemas.FoodLogResponse)
 def log_food(food: schemas.FoodLogCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return crud.create_food_log(db, user_id=current_user.id, food=food)
 
-@app.get("/logs/", response_model=List[schemas.FoodLogResponse])
+@app.get("/api/logs/", response_model=List[schemas.FoodLogResponse])
 def get_logs(limit: int = 100, date: Optional[str] = None, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return crud.get_food_logs_by_user(db, user_id=current_user.id, limit=limit, date_str=date)
 
 # --- AI INTEGRATION ---
-@app.post("/ai/analyze-food")
+@app.post("/api/ai/analyze-food")
 async def analyze_food(
     food_text: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
@@ -227,7 +232,7 @@ async def analyze_food(
     
     return analysis
 
-@app.get("/ai/reminders")
+@app.get("/api/ai/reminders")
 def get_smart_reminders(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """
     Behavioral Pattern Learner: analyzes previous log times to recommend when to send reminders.

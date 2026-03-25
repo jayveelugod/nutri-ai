@@ -1,8 +1,10 @@
 // Dynamically resolve backend so external devices hit the right host automatically
 // Dynamic API URL for Local vs Vercel
-const API_BASE_URL = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+let API_BASE_URL = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
     ? window.location.protocol + "//" + window.location.hostname + ":8000"
-    : "/api";
+    : "";
+
+API_BASE_URL = `${API_BASE_URL}/api`
 
 // --- GLOBAL FOOTER LOADING ---
 if ($('#footerContainer').length > 0) {
