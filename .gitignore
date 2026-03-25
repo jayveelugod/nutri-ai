@@ -1,5 +1,6 @@
 /backend/venv
 /backend/.env
+/backend/server_log.txt
 /backend/__pycache__
 deploy_vercel.sh
 vercel.json

@@ -288,6 +288,76 @@ async function loadDashboard() {
     }
 }
 
+// --- NOTIFICATIONS ---
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        try {
+            await Notification.requestPermission();
+        } catch(e) { console.error(e); }
+    }
+}
+
+function showLocalNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    
+    // Prefer service worker showNotification for better mobile PWA support
+    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, { body: body, badge: '/favicon.ico' });
+        }).catch(() => {
+            new Notification(title, { body: body });
+        });
+    } else {
+        new Notification(title, { body: body });
+    }
+}
+
+function setupMealNotifications(reminders) {
+    if (!('Notification' in window)) return;
+    
+    const now = new Date();
+    
+    Object.keys(reminders).forEach(meal => {
+        const timeStr = reminders[meal];
+        if (!timeStr) return;
+
+        // Parse "hh:mm AM" to today's Date object
+        const match = timeStr.match(/(\d+):(\d+)\s(.*)/i);
+        if (!match) return;
+
+        let [_, hours, mins, modifier] = match;
+        hours = parseInt(hours, 10);
+        mins = parseInt(mins, 10);
+
+        if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+        if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+
+        const targetTime = new Date();
+        targetTime.setHours(hours, mins, 0, 0);
+
+        const diffMs = targetTime.getTime() - now.getTime();
+
+        // 1 hour before (in ms)
+        const ms1Hr = diffMs - (60 * 60 * 1000);
+        // 30 mins before (in ms)
+        const ms30Min = diffMs - (30 * 60 * 1000);
+
+        // Schedule if it's still in the future
+        if (ms1Hr > 0) {
+            setTimeout(() => {
+                showLocalNotification('NutriAI Meal Reminder 🍽️', `Your ${meal} is in 1 hour! Time to prepare.`);
+            }, ms1Hr);
+        }
+
+        if (ms30Min > 0) {
+            setTimeout(() => {
+                showLocalNotification('NutriAI Meal Reminder ⏳', `Your ${meal} is in 30 minutes!`);
+            }, ms30Min);
+        }
+    });
+}
+
 async function loadReminders() {
     try {
         const res = await fetchWithAuth(`${API_BASE_URL}/ai/reminders`);
@@ -297,6 +367,11 @@ async function loadReminders() {
             if (data.Breakfast) $('#remindBreakfast').text(data.Breakfast);
             if (data.Lunch) $('#remindLunch').text(data.Lunch);
             if (data.Dinner) $('#remindDinner').text(data.Dinner);
+            
+            // Setup notifications if permission is granted
+            if (Notification.permission === 'granted') {
+                setupMealNotifications(data);
+            }
         }
     } catch (err) {
         console.error("Failed to load smart reminders", err);
@@ -311,7 +386,11 @@ $(document).ready(function () {
 
     if (window.location.pathname.includes('/index.html') || window.location.pathname === '/') {
         loadDashboard();
-        loadReminders();
+        
+        // Request notifications (usually better on user interact, but we ask here)
+        requestNotificationPermission().then(() => {
+            loadReminders();
+        });
 
         $('#recentMealsDateFilter').on('change', function () {
             loadDashboard(); // Re-render with new filter value
@@ -840,6 +919,9 @@ $(document).ready(function () {
                 $(imagePreview).show();
                 $('#retakeBtn').removeClass('d-none');
 
+                $('#uploadInputContainer').addClass('d-none');
+                $('#textInputContainer').addClass('d-none');
+
                 Quagga.decodeSingle({
                     src: dataUrl,
                     numOfWorkers: 0,
@@ -859,24 +941,34 @@ $(document).ready(function () {
             const recognition = new SpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
+            // Explicitly set language, helps prevent mobile browser aborts
+            recognition.lang = window.navigator.language || 'en-US';
 
             let isListening = false;
             $('#voiceInputBtn').on('click', function (e) {
                 e.preventDefault();
                 if (isListening) {
                     try { recognition.stop(); } catch (err) {
-                        showToast(`Voice stop error: ${err.message}`, 'danger');
+                        console.error(err);
                     }
                 } else {
                     $(this).addClass('listening');
                     $('#voiceStatus').removeClass('d-none');
                     isListening = true;
+
+                    // On many mobile devices, an active video stream will lock the media session
+                    // and cause SpeechRecognition to immediately abort. Pause it temporarily.
+                    if (video && !video.paused) {
+                        video.pause();
+                    }
+
                     try {
                         recognition.start();
                     } catch (err) {
                         isListening = false;
                         $(this).removeClass('listening');
                         $('#voiceStatus').addClass('d-none');
+                        if (video && video.paused) video.play();
                         showToast(`Voice start error: ${err.message}. If on mobile, ensure HTTPS.`, 'danger');
                     }
                 }
@@ -886,6 +978,11 @@ $(document).ready(function () {
                 isListening = false;
                 $('#voiceInputBtn').removeClass('listening');
                 $('#voiceStatus').addClass('d-none');
+                
+                // Resume camera stream if it was playing
+                if (video && video.paused && localStream) {
+                    video.play();
+                }
             };
 
             recognition.onresult = function (event) {
@@ -894,16 +991,27 @@ $(document).ready(function () {
             };
 
             recognition.onerror = function (event) {
+                // Ignore silent intentional aborts to prevent spamming toasts
+                if (event.error === 'aborted' && !isListening) {
+                    return;
+                }
+
                 isListening = false;
                 console.error("Speech recognition error:", event.error);
                 $('#voiceInputBtn').removeClass('listening');
                 $('#voiceStatus').addClass('d-none');
+                
+                if (video && video.paused && localStream) {
+                    video.play();
+                }
 
                 let errorMsg = event.error;
                 if (event.error === 'not-allowed') {
                     errorMsg = "Microphone access denied. Check permissions or ensure HTTPS.";
                 } else if (event.error === 'network') {
                     errorMsg = "Network error occurred for speech recognition.";
+                } else if (event.error === 'aborted') {
+                    errorMsg = "Microphone was aborted. This can happen if another app is using the mic, or the browser interrupted it.";
                 }
                 showToast(`Mic error: ${errorMsg}`, "danger");
             };
@@ -1005,11 +1113,18 @@ $(document).ready(function () {
             $(video).hide();
             $(captureBtn).hide();
             $(retakeBtn).removeClass('d-none');
+
+            $('#uploadInputContainer').addClass('d-none');
+            $('#textInputContainer').addClass('d-none');
         });
 
         $(retakeBtn).click(function () {
             selectedImageFile = null;
             $(imagePreview).hide();
+
+            // Restore lower sections
+            $('#uploadInputContainer').removeClass('d-none');
+            $('#textInputContainer').removeClass('d-none');
 
             if (!localStream) {
                 // If it was HTTP fallback
@@ -1037,6 +1152,8 @@ $(document).ready(function () {
                 $('#cameraStream').hide();
                 $('#captureBtn').hide();
                 $('#retakeBtn').removeClass('d-none');
+                
+                $('#textInputContainer').addClass('d-none');
             }
             reader.readAsDataURL(e.target.files[0]);
         }

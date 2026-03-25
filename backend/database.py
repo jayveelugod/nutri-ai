@@ -15,7 +15,12 @@ DB_NAME = os.getenv("DB_NAME", "nutriai_db")
 SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
 
 # We are using echo=True to see the generated SQL in terminal, good for learning/thesis
-engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, 
+    echo=True,
+    pool_pre_ping=True,      # Tests connection before using to handle Neon serverless drops
+    pool_recycle=300         # Recycle connections every 5 mins
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
