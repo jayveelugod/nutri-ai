@@ -25,14 +25,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Ensure uploads directory exists
-UPLOAD_DIR = "uploads"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-
-# Mount the uploads directory to serve images statically
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
 # Allow frontend to communicate with backend
 origins = ["*"]
 

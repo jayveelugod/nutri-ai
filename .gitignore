@@ -3,3 +3,5 @@
 /backend/__pycache__
 deploy_vercel.sh
 vercel.json
+.vercel
+.env*.local
