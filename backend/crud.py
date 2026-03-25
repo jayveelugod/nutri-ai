@@ -133,3 +133,25 @@ def add_weight_log(db: Session, user_id: str, weight: schemas.WeightHistoryCreat
 
 def get_weight_history(db: Session, user_id: str, limit: int = 30):
     return db.query(models.WeightHistory).filter(models.WeightHistory.user_id == user_id).order_by(models.WeightHistory.logged_at.asc()).limit(limit).all()
+
+# --- PROFILE DELETION ---
+def delete_user_data(db: Session, user_id: str):
+    """
+    Safely deletes the user and all associated records, returning Vercel Blob URLs for cleanup.
+    """
+    # 1. Fetch logs securely to collect blob URLs
+    logs = db.query(models.FoodLog).filter(models.FoodLog.user_id == user_id).all()
+    image_urls = [log.image_url for log in logs if log.image_url and log.image_url.startswith("http")]
+    
+    # 2. Hard delete all child dependencies explicitly
+    db.query(models.FoodLog).filter(models.FoodLog.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.WeightHistory).filter(models.WeightHistory.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.MedicalProfile).filter(models.MedicalProfile.user_id == user_id).delete(synchronize_session=False)
+    
+    # 3. Hard delete the root user record
+    db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session=False)
+    
+    # 4. Commit transaction
+    db.commit()
+    
+    return image_urls

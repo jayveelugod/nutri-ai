@@ -211,7 +211,8 @@ async function loadDashboard() {
                     $('#modalIron').text(log.iron_mg || 0);
 
                     if (log.image_url) {
-                        $('#modalFoodImage').attr('src', API_BASE_URL + log.image_url);
+                        const imgSrc = log.image_url.startsWith('http') ? log.image_url : API_BASE_URL + log.image_url;
+                        $('#modalFoodImage').attr('src', imgSrc);
                         $('#modalImageContainer').removeClass('d-none');
                     } else {
                         $('#modalImageContainer').addClass('d-none');
@@ -531,6 +532,31 @@ $(document).ready(function () {
                 showToast(err.message, 'danger');
             } finally {
                 btn.prop('disabled', false).text('Change Password');
+            }
+        });
+
+        // Handle Profile Deletion
+        $('#confirmDeleteProfileBtn').click(async function () {
+            const btn = $(this);
+            const originalText = btn.text();
+            btn.prop('disabled', true).text('Deleting...');
+
+            try {
+                const res = await fetchWithAuth(`${API_BASE_URL}/users/me`, {
+                    method: 'DELETE',
+                });
+
+                if (!res.ok) {
+                    const errInfo = await res.json();
+                    throw new Error(errInfo.detail || "Failed to delete account");
+                }
+
+                // Clean up and redirect to login
+                removeToken();
+                window.location.href = 'login.html';
+            } catch (err) {
+                showToast(err.message, 'danger');
+                btn.prop('disabled', false).text(originalText);
             }
         });
     }
@@ -1090,7 +1116,7 @@ $(document).ready(function () {
 
         } catch (err) {
             console.error(err);
-            showToast("Failed to analyze food. Make sure the backend is running.", 'danger');
+            showToast("Failed to analyze food.", 'danger');
             $('#scanLoading').addClass('d-none');
             $('#aiScanForm').show();
             // Restart camera?
