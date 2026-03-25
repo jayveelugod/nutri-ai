@@ -7,7 +7,7 @@ const API_BASE_URL = (window.location.hostname === "localhost" || window.locatio
 // --- GLOBAL FOOTER LOADING ---
 if ($('#footerContainer').length > 0) {
     $('#footerContainer').load('footer.html', function () {
-        const path = window.location.pathname.split('/').pop() || 'index.html';
+        const path = window.location.pathname.split('/').pop() || '/index.html';
         $('.bottom-nav .nav-btn').removeClass('active text-success text-white').addClass('text-muted');
 
         let activeTarget = 'index';
@@ -74,12 +74,12 @@ function removeToken() {
 
 function checkAuth() {
     const token = getToken();
-    const isAuthPage = window.location.pathname.includes('login.html') || window.location.pathname.includes('register.html') || window.location.pathname.includes('forgot-password.html');
+    const isAuthPage = window.location.pathname.includes('/login.html') || window.location.pathname.includes('/register.html') || window.location.pathname.includes('forgot-password.html');
 
     if (!token && !isAuthPage) {
-        window.location.href = 'login.html';
+        window.location.href = '/login.html';
     } else if (token && isAuthPage) {
-        window.location.href = 'index.html';
+        window.location.href = '/index.html';
     }
 }
 
@@ -97,7 +97,7 @@ async function fetchWithAuth(url, options = {}) {
     if (response.status === 401) {
         // Token expired or invalid
         removeToken();
-        window.location.href = 'login.html';
+        window.location.href = '/login.html';
         throw new Error("Unauthorized");
     }
     return response;
@@ -307,7 +307,7 @@ $(document).ready(function () {
     // Check auth state on load
     checkAuth();
 
-    if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
+    if (window.location.pathname.includes('/index.html') || window.location.pathname === '/') {
         loadDashboard();
         loadReminders();
 
@@ -345,7 +345,7 @@ $(document).ready(function () {
 
             const data = await res.json();
             setToken(data.access_token);
-            window.location.href = 'index.html';
+            window.location.href = '/index.html';
         } catch (err) {
             showToast(err.message, 'danger');
             btn.prop('disabled', false).text('Login');
@@ -397,7 +397,7 @@ $(document).ready(function () {
     $('#logoutBtn, #logoutBtnHeader').click(function (e) {
         e.preventDefault();
         removeToken();
-        window.location.href = 'login.html';
+        window.location.href = '/login.html';
     });
 
     // --- NAVIGATION ---
@@ -439,7 +439,7 @@ $(document).ready(function () {
 
             showToast(`Profile Saved! Your daily calorie target is ${data.daily_calorie_goal} kcal.`);
             setTimeout(() => {
-                window.location.href = "index.html";
+                window.location.href = "/index.html";
             }, 2000);
         } catch (err) {
             console.error(err);
@@ -553,7 +553,7 @@ $(document).ready(function () {
 
                 // Clean up and redirect to login
                 removeToken();
-                window.location.href = 'login.html';
+                window.location.href = '/login.html';
             } catch (err) {
                 showToast(err.message, 'danger');
                 btn.prop('disabled', false).text(originalText);
