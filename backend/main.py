@@ -8,6 +8,8 @@ import os
 import sys
 from datetime import datetime
 from typing import List, Optional
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # Vercel deployment fix: add current directory to sys.path so it can find sibling modules 
 # (auth, crud, models, etc.) even when invoked from the repository root.
@@ -53,14 +55,63 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @app.post("/api/login", response_model=schemas.Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=form_data.username)
-    if not user or not crud.verify_password(form_data.password, user.hashed_password):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found. Please sign up first.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not crud.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/google", response_model=schemas.Token)
+def login_google(token_request: schemas.GoogleToken, db: Session = Depends(get_db)):
+    try:
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        
+        # Verify the token
+        id_info = id_token.verify_oauth2_token(
+            token_request.token, 
+            google_requests.Request(), 
+            client_id,
+            clock_skew_in_seconds=10
+        )
+        
+        email = id_info.get("email")
+        name = id_info.get("name", "Google User")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="No email provided by Google")
+            
+        user = crud.get_user_by_email(db, email=email)
+        if not user:
+            if not token_request.is_register:
+                raise HTTPException(status_code=404, detail="Account not found. Please sign up first.")
+                
+            # Create a dummy password since they use Google
+            import secrets
+            import string
+            alphabet = string.ascii_letters + string.digits
+            dummy_pw = ''.join(secrets.choice(alphabet) for i in range(20))
+            
+            user_create = schemas.UserCreate(email=email, name=name, password=dummy_pw)
+            user = crud.create_user(db=db, user=user_create)
+            
+        access_token = auth.create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Google token: {str(e)}")
+
+@app.get("/api/auth/google-client-id")
+def get_google_client_id():
+    return {"client_id": os.getenv("GOOGLE_CLIENT_ID")}
 
 @app.get("/api/users/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_user)):

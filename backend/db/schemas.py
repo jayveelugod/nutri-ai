@@ -10,6 +10,10 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+class GoogleToken(BaseModel):
+    token: str
+    is_register: bool = False
+
 # USER SCHEMAS
 class UserBase(BaseModel):
     email: EmailStr

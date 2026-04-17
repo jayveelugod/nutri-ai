@@ -105,6 +105,91 @@ async function fetchWithAuth(url, options = {}) {
     return response;
 }
 
+// --- GOOGLE OAUTH ---
+let GOOGLE_CLIENT_ID = null;
+
+async function handleGoogleCallback(response) {
+    if (!response.credential) return;
+
+    const isRegisterPage = window.location.pathname.includes('register.html');
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                token: response.credential,
+                is_register: isRegisterPage
+            })
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.detail || "Google Login failed");
+        }
+
+        const data = await res.json();
+        setToken(data.access_token);
+
+        if (isRegisterPage) {
+            window.location.href = '/onboarding.html';
+        } else {
+            window.location.href = '/index.html';
+        }
+    } catch (err) {
+        showToast(err.message, 'danger');
+    }
+}
+
+async function initGoogleAuth() {
+    if (typeof google === 'undefined') return;
+
+    if (!GOOGLE_CLIENT_ID) {
+        try {
+            const res = await fetch(`${API_BASE_URL}/auth/google-client-id`);
+            const data = await res.json();
+            if (data.client_id) {
+                GOOGLE_CLIENT_ID = data.client_id;
+            } else {
+                console.warn("Google Client ID not configured.");
+                return;
+            }
+        } catch (err) {
+            console.error("Failed to fetch Google Client ID", err);
+            return;
+        }
+    }
+
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCallback
+    });
+
+    const signInBtn = document.getElementById('googleSignInBtn');
+    if (signInBtn) {
+        google.accounts.id.renderButton(signInBtn, { theme: 'outline', size: 'large' });
+    }
+
+    const signUpBtn = document.getElementById('googleSignUpBtn');
+    if (signUpBtn) {
+        google.accounts.id.renderButton(signUpBtn, { theme: 'outline', size: 'large' });
+    }
+}
+
+window.onload = function () {
+    if (typeof google !== 'undefined') {
+        initGoogleAuth();
+    } else {
+        // Fallback polling if script takes too long
+        const interval = setInterval(() => {
+            if (typeof google !== 'undefined') {
+                clearInterval(interval);
+                initGoogleAuth();
+            }
+        }, 300);
+    }
+};
+
 async function loadDashboard() {
     try {
         const userRes = await fetchWithAuth(`${API_BASE_URL}/users/me`);
