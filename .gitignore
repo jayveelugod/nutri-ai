@@ -1,5 +1,5 @@
-/backend/venv
 /backend/server_log.txt
 /backend/__pycache__
-.vercel
-.env*.local
+/backend/component/__pycache__
+/backend/db/__pycache__
+/venv
