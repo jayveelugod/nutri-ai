@@ -1,8 +1,11 @@
 import datetime
 from sqlalchemy.orm import Session
-from database import SessionLocal, engine
-import models
-import crud
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from db.database import SessionLocal, engine
+from component import models
+from db import crud
 
 def seed_db():
     print("Creating tables if they don't exist...")

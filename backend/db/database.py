@@ -12,7 +12,8 @@ DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "nutriai_db")
 
 # Construct PostgreSQL URL
-SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
+SSL_MODE = "" if DB_HOST in ["localhost", "127.0.0.1"] else "?sslmode=require"
+SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}{SSL_MODE}"
 
 # We are using echo=True to see the generated SQL in terminal, good for learning/thesis
 engine = create_engine(

@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 import uuid
-from database import Base
+from db.database import Base
 
 def get_ph_time():
     return datetime.utcnow() + timedelta(hours=8)

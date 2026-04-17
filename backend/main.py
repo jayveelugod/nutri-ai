@@ -13,12 +13,9 @@ from typing import List, Optional
 # (auth, crud, models, etc.) even when invoked from the repository root.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import models
-import schemas
-import crud
-import auth
-import ai_service
-from database import engine, get_db
+from component import models, auth, ai_service
+from db import schemas, crud
+from db.database import engine, get_db
 from urllib.parse import quote
 
 # Create all tables in the database
