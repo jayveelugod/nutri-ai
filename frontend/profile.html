@@ -31,9 +31,19 @@
             <h5 class="fw-bold mb-3 text-success">Basic Info & Goals</h5>
 
             <form id="profileInfoForm" class="mb-4">
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Full Name</label>
-                    <input type="text" class="form-control" id="profileName" required>
+                <div class="row g-2 mb-3">
+                    <div class="col-5">
+                        <label class="form-label small text-muted">First Name</label>
+                        <input type="text" class="form-control" id="profileFirstName" required>
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label small text-muted">M.I.</label>
+                        <input type="text" class="form-control" id="profileMiddleInitial" maxlength="1">
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label small text-muted">Last Name</label>
+                        <input type="text" class="form-control" id="profileLastName" required>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small text-muted">Email Address</label>
@@ -71,8 +81,15 @@
                 <p class="small text-muted mb-3">NutriAI uses this info to warn you about dangerous scanned foods.</p>
 
                 <div class="mb-3">
-                    <label class="form-label small text-muted">Pre-existing Illnesses (comma separated)</label>
-                    <input type="text" class="form-control" id="illnesses" placeholder="e.g. Diabetes, Hypertension">
+                    <label class="form-label small text-muted">Pre-existing Illnesses / Conditions</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="illnessesDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="border: 1px solid #ced4da; background-color: #fff; color: #212529;">
+                            <span id="selectedIllnessesText" class="text-truncate" style="max-width: 90%;">Select Medical Conditions</span>
+                        </button>
+                        <div class="dropdown-menu w-100 p-3" aria-labelledby="illnessesDropdown" id="illnessesOptionsContainer" style="max-height: 250px; overflow-y: auto;">
+                            <!-- Options populated dynamically -->
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mb-4">
@@ -91,15 +108,39 @@
             <form id="changePasswordForm">
                 <div class="mb-3">
                     <label class="form-label small text-muted">Current Password</label>
-                    <input type="password" class="form-control" id="currentPassword" required>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="currentPassword" required>
+                        <button class="btn btn-outline-secondary toggle-password d-flex align-items-center" type="button" style="border-color: #ced4da;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                <path d="M16 8s-3-5.5-8-5.5S0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.173 8"/>
+                                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small text-muted">New Password</label>
-                    <input type="password" class="form-control" id="newPassword" required>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="newPassword" required>
+                        <button class="btn btn-outline-secondary toggle-password d-flex align-items-center" type="button" style="border-color: #ced4da;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                <path d="M16 8s-3-5.5-8-5.5S0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.173 8"/>
+                                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="mb-4">
                     <label class="form-label small text-muted">Confirm New Password</label>
-                    <input type="password" class="form-control" id="confirmNewPassword" required>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="confirmNewPassword" required>
+                        <button class="btn btn-outline-secondary toggle-password d-flex align-items-center" type="button" style="border-color: #ced4da;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                <path d="M16 8s-3-5.5-8-5.5S0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.173 8"/>
+                                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-outline-warning w-100 py-2 rounded-pill fw-bold"
                     id="changePasswordBtn">Change Password</button>

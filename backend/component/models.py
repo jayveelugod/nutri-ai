@@ -13,12 +13,25 @@ class User(Base):
     id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, index=True) # specified length for mysql
     hashed_password = Column(String(255))
-    name = Column(String(100))
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    middle_initial = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=get_ph_time)
 
     profile = relationship("MedicalProfile", back_populates="user", uselist=False)
     logs = relationship("FoodLog", back_populates="user")
     weight_history = relationship("WeightHistory", back_populates="user")
+
+    @property
+    def name(self) -> str:
+        parts = []
+        if self.first_name:
+            parts.append(self.first_name)
+        if self.middle_initial:
+            parts.append(f"{self.middle_initial}.")
+        if self.last_name:
+            parts.append(self.last_name)
+        return " ".join(parts) if parts else ""
 
 class MedicalProfile(Base):
     """
@@ -80,3 +93,10 @@ class WeightHistory(Base):
     logged_at = Column(DateTime, default=get_ph_time)
 
     user = relationship("User", back_populates="weight_history")
+
+class MedicalCondition(Base):
+    __tablename__ = "medical_conditions"
+
+    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), unique=True, index=True)
+    description = Column(Text, nullable=True)

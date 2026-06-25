@@ -26,6 +26,173 @@ if ($('#footerContainer').length > 0) {
     });
 }
 
+// --- PASSWORD STRENGTH & MEDICAL CONDITIONS UTILITIES ---
+function isStrongPassword(password) {
+    if (password.length < 8) return false;
+    if (!/[A-Z]/.test(password)) return false;
+    if (!/[a-z]/.test(password)) return false;
+    if (!/\d/.test(password)) return false;
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return false;
+    return true;
+}
+
+function setupPasswordStrengthValidation(inputSelector) {
+    const $input = $(inputSelector);
+    if ($input.length === 0) return;
+    
+    const $formGroup = $input.closest('.mb-3, .mb-4, .mb-2, .mb-5');
+    let $container = $formGroup.find('.password-strength-container');
+    if ($container.length === 0) {
+        $container = $(`
+            <div class="password-strength-container mt-2 d-none">
+                <div class="progress mb-2" style="height: 6px; border-radius: 3px; background-color: #e9ecef;">
+                    <div class="progress-bar" role="progressbar" style="width: 0%; transition: width 0.3s ease, background-color 0.3s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="password-feedback small fw-bold text-muted" style="font-size: 0.75rem;">Too Weak</span>
+                    <span class="password-percentage small text-muted" style="font-size: 0.75rem;">0%</span>
+                </div>
+                <ul class="password-requirements list-unstyled small text-muted mb-0 ps-1" style="font-size: 0.75rem; line-height: 1.4;">
+                    <li class="req-length mb-1"><span class="badge bg-secondary-subtle text-secondary me-1 px-1">✕</span> At least 8 characters</li>
+                    <li class="req-upper mb-1"><span class="badge bg-secondary-subtle text-secondary me-1 px-1">✕</span> At least one uppercase letter</li>
+                    <li class="req-lower mb-1"><span class="badge bg-secondary-subtle text-secondary me-1 px-1">✕</span> At least one lowercase letter</li>
+                    <li class="req-number mb-1"><span class="badge bg-secondary-subtle text-secondary me-1 px-1">✕</span> At least one number</li>
+                    <li class="req-special mb-0"><span class="badge bg-secondary-subtle text-secondary me-1 px-1">✕</span> At least one special character</li>
+                </ul>
+            </div>
+        `);
+        $formGroup.append($container);
+    }
+    
+    $input.on('focus input', function() {
+        const val = $input.val();
+        if (val.length === 0) {
+            $container.addClass('d-none');
+            return;
+        }
+        $container.removeClass('d-none');
+        
+        const checks = {
+            length: val.length >= 8,
+            upper: /[A-Z]/.test(val),
+            lower: /[a-z]/.test(val),
+            number: /\d/.test(val),
+            special: /[!@#$%^&*(),.?":{}|<>]/.test(val)
+        };
+        
+        let score = 0;
+        for (const [key, met] of Object.entries(checks)) {
+            const $item = $container.find(`.req-${key}`);
+            const $badge = $item.find('.badge');
+            if (met) {
+                score++;
+                $badge.removeClass('bg-secondary-subtle text-secondary').addClass('bg-success-subtle text-success').text('✓');
+                $item.removeClass('text-muted').addClass('text-success fw-medium');
+            } else {
+                $badge.removeClass('bg-success-subtle text-success').addClass('bg-secondary-subtle text-secondary').text('✕');
+                $item.removeClass('text-success fw-medium').addClass('text-muted');
+            }
+        }
+        
+        const pct = (score / 5) * 100;
+        const $bar = $container.find('.progress-bar');
+        $bar.css('width', `${pct}%`).attr('aria-valuenow', pct);
+        $container.find('.password-percentage').text(`${pct}%`);
+        
+        const $feedback = $container.find('.password-feedback');
+        $bar.removeClass('bg-danger bg-warning bg-success bg-info');
+        if (score === 0) {
+            $bar.addClass('bg-danger');
+            $feedback.text('Too Weak').removeClass().addClass('password-feedback small fw-bold text-danger');
+        } else if (score <= 2) {
+            $bar.addClass('bg-danger');
+            $feedback.text('Weak').removeClass().addClass('password-feedback small fw-bold text-danger');
+        } else if (score <= 4) {
+            $bar.addClass('bg-warning');
+            $feedback.text('Medium').removeClass().addClass('password-feedback small fw-bold text-warning');
+        } else {
+            $bar.addClass('bg-success');
+            $feedback.text('Strong & Secure!').removeClass().addClass('password-feedback small fw-bold text-success');
+        }
+    });
+}
+
+async function populateMedicalConditions(containerSelector, dropdownButtonTextSelector, selectedValueStr = "") {
+    try {
+        const res = await fetch(`${API_BASE_URL}/medical-conditions`);
+        const conditions = await res.json();
+        
+        const $container = $(containerSelector);
+        if ($container.length === 0) return;
+        $container.empty();
+        
+        const selectedVals = selectedValueStr ? selectedValueStr.split(',').map(s => s.trim()) : [];
+        
+        conditions.forEach(cond => {
+            const isChecked = selectedVals.includes(cond.name) ? 'checked' : '';
+            $container.append(`
+                <div class="form-check mb-2">
+                    <input class="form-check-input condition-checkbox" type="checkbox" value="${cond.name}" id="cond_${cond.id}" ${isChecked}>
+                    <label class="form-check-label w-100" style="cursor: pointer;" for="cond_${cond.id}">
+                        <span class="fw-semibold text-dark small">${cond.name}</span>
+                        <small class="text-muted d-block" style="font-size: 0.65rem; line-height: 1.2;">${cond.description || ''}</small>
+                    </label>
+                </div>
+            `);
+        });
+        
+        updateDropdownButtonText(containerSelector, dropdownButtonTextSelector);
+        
+        $container.off('change', '.condition-checkbox').on('change', '.condition-checkbox', function() {
+            updateDropdownButtonText(containerSelector, dropdownButtonTextSelector);
+        });
+    } catch (err) {
+        console.error("Failed to populate medical conditions", err);
+    }
+}
+
+function updateDropdownButtonText(containerSelector, dropdownButtonTextSelector) {
+    const selected = [];
+    $(`${containerSelector} .condition-checkbox:checked`).each(function() {
+        selected.push($(this).val());
+    });
+    
+    const $btnText = $(dropdownButtonTextSelector);
+    if (selected.length > 0) {
+        selected.sort();
+        $btnText.text(selected.join(', '));
+    } else {
+        $btnText.text('Select Medical Conditions');
+    }
+}
+
+// Toggle password visibility handler
+$(document).on('click', '.toggle-password', function() {
+    const $btn = $(this);
+    const $input = $btn.closest('.input-group').find('input');
+    if ($input.length === 0) return;
+    
+    const isPassword = $input.attr('type') === 'password';
+    $input.attr('type', isPassword ? 'text' : 'password');
+    
+    if (isPassword) {
+        $btn.html(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye-slash" viewBox="0 0 16 16">
+                <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a8.8 8.8 0 0 0-2.79.448l1.018 1.018A6.8 6.8 0 0 1 8 3.5c4 0 7.151 3.57 8 4.5a10.7 10.7 0 0 1-2.905 3.485zm-2.068-2.068L12.43 10.3A3.5 3.5 0 0 0 8 5.582l1.57 1.57c.127.182.223.385.29.6z"/>
+                <path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829zm-2.943-2.943-.824-.824a5.1 5.1 0 0 0-3.393 2.062L1.122 6.029A11.7 11.7 0 0 0 0 8s3 5.5 8 5.5a8.7 8.7 0 0 0 5.258-1.743l-1.057-1.057a7.8 7.8 0 0 1-4.201 1.205c-4.137 0-7.263-3.57-8-4.5.766-.975 2.029-2.3 3.869-3.29l.753.753a5 5 0 0 0-1.897 1.897L5.05 8c.036-.08.083-.153.139-.219z"/>
+                <path d="M13.646 14.354l-12-12 .708-.708 12 12-.708.708z"/>
+            </svg>
+        `);
+    } else {
+        $btn.html(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                <path d="M16 8s-3-5.5-8-5.5S0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.173 8"/>
+                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+            </svg>
+        `);
+    }
+});
+
 // --- TOAST UTILITY ---
 function showToast(message, type = "success") {
     let container = document.getElementById('toastContainer');
@@ -469,6 +636,16 @@ async function loadReminders() {
 $(document).ready(function () {
     console.log("NutriAI initialized");
 
+    // Initialize password strength validations
+    setupPasswordStrengthValidation('#regPassword');
+    setupPasswordStrengthValidation('#newPassword');
+    setupPasswordStrengthValidation('#forgotNewPassword');
+
+    // Populate conditions if on onboarding page
+    if (window.location.pathname.includes('onboarding.html')) {
+        populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', '');
+    }
+
     // Check auth state on load
     checkAuth();
 
@@ -523,9 +700,16 @@ $(document).ready(function () {
 
     $('#registerForm').submit(async function (e) {
         e.preventDefault();
-        const name = $('#regName').val();
+        const first_name = $('#regFirstName').val();
+        const last_name = $('#regLastName').val();
+        const middle_initial = $('#regMiddleInitial').val() || null;
         const email = $('#regEmail').val();
         const password = $('#regPassword').val();
+
+        if (!isStrongPassword(password)) {
+            showToast("Please use a strong password that meets all requirements.", 'danger');
+            return;
+        }
 
         const btn = $('#regBtn');
         btn.prop('disabled', true).text('Creating Account...');
@@ -535,7 +719,7 @@ $(document).ready(function () {
             const res = await fetch(`${API_BASE_URL}/users/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, name })
+                body: JSON.stringify({ email, password, first_name, last_name, middle_initial })
             });
 
             if (!res.ok) {
@@ -577,11 +761,17 @@ $(document).ready(function () {
     // --- PROFILE / ONBOARDING LOGIC ---
     $('#onboardingForm').submit(async function (e) {
         e.preventDefault();
+        
+        const illnessesList = [];
+        $('#illnessesOptionsContainer .condition-checkbox:checked').each(function() {
+            illnessesList.push($(this).val());
+        });
+        
         const profileData = {
             height_cm: parseFloat($('#height_cm').val()),
             weight_kg: parseFloat($('#weight_kg').val()),
             target_weight_kg: parseFloat($('#target_weight_kg').val()),
-            illnesses: $('#illnesses').val(),
+            illnesses: illnessesList.join(', '),
             allergies: $('#allergies').val()
         };
 
@@ -625,15 +815,20 @@ $(document).ready(function () {
                 $('#height_cm').val(data.height_cm);
                 $('#weight_kg').val(data.weight_kg);
                 $('#target_weight_kg').val(data.target_weight_kg);
-                $('#illnesses').val(data.illnesses);
+                populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', data.illnesses);
                 $('#allergies').val(data.allergies);
-            }).catch(err => console.log("Profile not found or error", err));
+            }).catch(err => {
+                console.log("Profile not found or error", err);
+                populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', '');
+            });
 
         // Load User Basic Info
         fetchWithAuth(`${API_BASE_URL}/users/me`)
             .then(res => res.json())
             .then(data => {
-                $('#profileName').val(data.name);
+                $('#profileFirstName').val(data.first_name || '');
+                $('#profileLastName').val(data.last_name || '');
+                $('#profileMiddleInitial').val(data.middle_initial || '');
                 $('#profileEmail').val(data.email);
             }).catch(err => console.log("User info not found or error", err));
 
@@ -648,7 +843,9 @@ $(document).ready(function () {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name: $('#profileName').val(),
+                        first_name: $('#profileFirstName').val(),
+                        last_name: $('#profileLastName').val(),
+                        middle_initial: $('#profileMiddleInitial').val() || null,
                         email: $('#profileEmail').val()
                     })
                 });
@@ -674,6 +871,11 @@ $(document).ready(function () {
 
             if (newPw !== confirmPw) {
                 showToast("New passwords do not match!", 'danger');
+                return;
+            }
+
+            if (!isStrongPassword(newPw)) {
+                showToast("Please use a strong password that meets all requirements.", 'danger');
                 return;
             }
 

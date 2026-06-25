@@ -189,3 +189,30 @@ body {
         box-shadow: 0 0 0 8px rgba(220, 53, 69, 0);
     }
 }
+
+/* Password Strength Indicator & Checklist Dropdown Styles */
+.password-strength-container {
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+}
+.password-requirements li {
+    transition: all 0.3s ease;
+}
+.password-requirements .badge {
+    font-size: 0.65rem;
+    padding: 3px 5px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+#illnessesOptionsContainer {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    border: 1px solid #dee2e6;
+}
+.condition-checkbox:checked + label {
+    color: var(--primary-color) !important;
+}
+.form-check-label {
+    user-select: none;
+}

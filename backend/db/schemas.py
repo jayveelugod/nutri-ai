@@ -17,21 +17,41 @@ class GoogleToken(BaseModel):
 # USER SCHEMAS
 class UserBase(BaseModel):
     email: EmailStr
-    name: str
+    first_name: str
+    last_name: str
+    middle_initial: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: str
+    name: str
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_initial: Optional[str] = None
     created_at: datetime
     
     class Config:
         orm_mode = True
+        from_attributes = True
 
 class UserUpdate(BaseModel):
-    name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_initial: Optional[str] = None
     email: Optional[EmailStr] = None
+
+# MEDICAL CONDITION SCHEMAS
+class MedicalConditionResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
 
 class UserPasswordUpdate(BaseModel):
     current_password: str

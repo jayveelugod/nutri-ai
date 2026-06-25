@@ -47,7 +47,14 @@
                 <h5 class="fw-bold mb-3">Medical Profile Builder</h5>
                 <div class="mb-3">
                     <label class="form-label small text-muted">Illnesses / Conditions (Optional)</label>
-                    <input type="text" class="form-control" id="illnesses" placeholder="e.g. Diabetes, Hypertension">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="illnessesDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="border: 1px solid #ced4da; background-color: #fff; color: #212529;">
+                            <span id="selectedIllnessesText" class="text-truncate" style="max-width: 90%;">Select Medical Conditions</span>
+                        </button>
+                        <div class="dropdown-menu w-100 p-3" aria-labelledby="illnessesDropdown" id="illnessesOptionsContainer" style="max-height: 250px; overflow-y: auto;">
+                            <!-- Options populated dynamically -->
+                        </div>
+                    </div>
                 </div>
                 <div class="mb-4">
                     <label class="form-label small text-muted">Food Allergies (Optional)</label>

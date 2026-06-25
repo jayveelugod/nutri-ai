@@ -23,6 +23,59 @@ from urllib.parse import quote
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
 
+# Migration helper to add new columns to users table if they don't exist
+from db.database import SessionLocal
+from sqlalchemy import text
+db_mig = SessionLocal()
+try:
+    res = db_mig.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='first_name'"))
+    if not res.fetchone():
+        print("Migrating users table: adding first_name, last_name, middle_initial columns...")
+        # Add columns
+        db_mig.execute(text("ALTER TABLE users ADD COLUMN first_name VARCHAR(100)"))
+        db_mig.execute(text("ALTER TABLE users ADD COLUMN last_name VARCHAR(100)"))
+        db_mig.execute(text("ALTER TABLE users ADD COLUMN middle_initial VARCHAR(10)"))
+        db_mig.commit()
+        
+        # Populate columns from existing name column
+        users_list = db_mig.execute(text("SELECT id, name FROM users")).fetchall()
+        for u in users_list:
+            uid, full_name = u
+            if full_name:
+                parts = full_name.split()
+                fname = parts[0] if parts else ""
+                lname = " ".join(parts[1:]) if len(parts) > 1 else ""
+                db_mig.execute(
+                    text("UPDATE users SET first_name=:fname, last_name=:lname WHERE id=:uid"),
+                    {"fname": fname, "lname": lname, "uid": uid}
+                )
+        db_mig.commit()
+except Exception as e:
+    print(f"Migration warning (handled): {e}")
+finally:
+    db_mig.close()
+
+# Seed medical conditions if empty
+db_seed = SessionLocal()
+try:
+    if db_seed.query(models.MedicalCondition).count() == 0:
+        default_conditions = [
+            models.MedicalCondition(name="Diabetes", description="A condition that affects how the body uses blood sugar."),
+            models.MedicalCondition(name="Hypertension", description="High blood pressure."),
+            models.MedicalCondition(name="Heart Disease", description="Various conditions affecting the heart."),
+            models.MedicalCondition(name="Kidney Disease", description="Gradual loss of kidney function."),
+            models.MedicalCondition(name="Celiac Disease", description="An immune reaction to eating gluten."),
+            models.MedicalCondition(name="Asthma", description="A condition in which airways narrow and swell."),
+            models.MedicalCondition(name="Obesity", description="A complex disease involving an excessive amount of body fat."),
+            models.MedicalCondition(name="Lactose Intolerance", description="Inability to fully digest sugar (lactose) in dairy products.")
+        ]
+        db_seed.add_all(default_conditions)
+        db_seed.commit()
+except Exception as e:
+    print(f"Seeding warning (handled): {e}")
+finally:
+    db_seed.close()
+
 app = FastAPI(
     title="NutriAI Backend API",
     description="Backend services for the NutriAI Thesis Project",
@@ -44,12 +97,23 @@ app.add_middleware(
 def root():
     return {"message": "NutriAI Backend is running!"}
 
+@app.get("/api/medical-conditions", response_model=List[schemas.MedicalConditionResponse])
+def get_medical_conditions(db: Session = Depends(get_db)):
+    return crud.get_medical_conditions(db)
+
 # --- AUTH AND USERS ---
 @app.post("/api/users/", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if not auth.validate_password_strength(user.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password is too weak. It must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character."
+        )
+        
     return crud.create_user(db=db, user=user)
 
 @app.post("/api/login", response_model=schemas.Token)
@@ -94,13 +158,25 @@ def login_google(token_request: schemas.GoogleToken, db: Session = Depends(get_d
             if not token_request.is_register:
                 raise HTTPException(status_code=404, detail="Account not found. Please sign up first.")
                 
+            # Split full name into first and last name
+            name_parts = name.split()
+            first_name = name_parts[0] if name_parts else "Google"
+            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else "User"
+            middle_initial = None
+            
             # Create a dummy password since they use Google
             import secrets
             import string
-            alphabet = string.ascii_letters + string.digits
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
             dummy_pw = ''.join(secrets.choice(alphabet) for i in range(20))
             
-            user_create = schemas.UserCreate(email=email, name=name, password=dummy_pw)
+            user_create = schemas.UserCreate(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                middle_initial=middle_initial,
+                password=dummy_pw
+            )
             user = crud.create_user(db=db, user=user_create)
             
         access_token = auth.create_access_token(data={"sub": user.email})
@@ -133,6 +209,12 @@ def update_password(pw_update: schemas.UserPasswordUpdate, current_user: models.
     if not crud.verify_password(pw_update.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect current password")
         
+    if not auth.validate_password_strength(pw_update.new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password is too weak. It must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character."
+        )
+        
     crud.update_user_password(db, user_id=current_user.id, new_password=pw_update.new_password)
     return {"message": "Password updated successfully"}
 
@@ -145,6 +227,12 @@ def forgot_password_immidiate_reset(request: ForgotPasswordRequest, db: Session 
     user = crud.get_user_by_email(db, email=request.email)
     if not user:
         raise HTTPException(status_code=404, detail="Email not found")
+        
+    if not auth.validate_password_strength(request.new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password is too weak. It must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character."
+        )
         
     crud.update_user_password(db, user_id=user.id, new_password=request.new_password)
     return {"message": "Password reset successfully"}

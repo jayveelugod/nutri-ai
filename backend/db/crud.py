@@ -18,7 +18,13 @@ def get_user_by_email(db: Session, email: str):
 
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
-    db_user = models.User(email=user.email, name=user.name, hashed_password=hashed_password)
+    db_user = models.User(
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        middle_initial=user.middle_initial,
+        hashed_password=hashed_password
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -29,14 +35,21 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
     if not db_user:
         return None
     
-    if user_update.name is not None:
-        db_user.name = user_update.name
+    if user_update.first_name is not None:
+        db_user.first_name = user_update.first_name
+    if user_update.last_name is not None:
+        db_user.last_name = user_update.last_name
+    if user_update.middle_initial is not None:
+        db_user.middle_initial = user_update.middle_initial
     if user_update.email is not None:
         db_user.email = user_update.email
         
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def get_medical_conditions(db: Session):
+    return db.query(models.MedicalCondition).order_by(models.MedicalCondition.name).all()
 
 def update_user_password(db: Session, user_id: str, new_password: str):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
