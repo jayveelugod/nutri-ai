@@ -197,22 +197,54 @@ body {
     border-radius: 10px;
     border: 1px solid #e9ecef;
 }
+
 .password-requirements li {
     transition: all 0.3s ease;
 }
+
 .password-requirements .badge {
     font-size: 0.65rem;
     padding: 3px 5px;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
+
 #illnessesOptionsContainer {
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     border: 1px solid #dee2e6;
 }
-.condition-checkbox:checked + label {
+
+.condition-checkbox:checked+label {
     color: var(--primary-color) !important;
 }
+
 .form-check-label {
     user-select: none;
+}
+
+.settings-back-btn {
+    transition: all 0.2s ease;
+}
+
+.settings-back-btn:hover,
+.settings-back-btn:visited,
+.settings-back-btn:focus {
+    background: #e9ecef;
+    color: var(--text-main) !important;
+    text-decoration: none !important;
+    transform: scale(1.05);
+}
+
+.settings-back-btn:active {
+    transform: scale(0.95);
+}
+
+/* Custom list-group transitions for Messenger-style menus */
+.list-group-item-action {
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.list-group-item-action:active {
+    background-color: #f1f3f5 !important;
+    transform: scale(0.98);
 }

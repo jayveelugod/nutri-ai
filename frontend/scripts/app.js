@@ -39,7 +39,7 @@ function isStrongPassword(password) {
 function setupPasswordStrengthValidation(inputSelector) {
     const $input = $(inputSelector);
     if ($input.length === 0) return;
-    
+
     const $formGroup = $input.closest('.mb-3, .mb-4, .mb-2, .mb-5');
     let $container = $formGroup.find('.password-strength-container');
     if ($container.length === 0) {
@@ -63,15 +63,15 @@ function setupPasswordStrengthValidation(inputSelector) {
         `);
         $formGroup.append($container);
     }
-    
-    $input.on('focus input', function() {
+
+    $input.on('focus input', function () {
         const val = $input.val();
         if (val.length === 0) {
             $container.addClass('d-none');
             return;
         }
         $container.removeClass('d-none');
-        
+
         const checks = {
             length: val.length >= 8,
             upper: /[A-Z]/.test(val),
@@ -79,7 +79,7 @@ function setupPasswordStrengthValidation(inputSelector) {
             number: /\d/.test(val),
             special: /[!@#$%^&*(),.?":{}|<>]/.test(val)
         };
-        
+
         let score = 0;
         for (const [key, met] of Object.entries(checks)) {
             const $item = $container.find(`.req-${key}`);
@@ -93,12 +93,12 @@ function setupPasswordStrengthValidation(inputSelector) {
                 $item.removeClass('text-success fw-medium').addClass('text-muted');
             }
         }
-        
+
         const pct = (score / 5) * 100;
         const $bar = $container.find('.progress-bar');
         $bar.css('width', `${pct}%`).attr('aria-valuenow', pct);
         $container.find('.password-percentage').text(`${pct}%`);
-        
+
         const $feedback = $container.find('.password-feedback');
         $bar.removeClass('bg-danger bg-warning bg-success bg-info');
         if (score === 0) {
@@ -121,13 +121,13 @@ async function populateMedicalConditions(containerSelector, dropdownButtonTextSe
     try {
         const res = await fetch(`${API_BASE_URL}/medical-conditions`);
         const conditions = await res.json();
-        
+
         const $container = $(containerSelector);
         if ($container.length === 0) return;
         $container.empty();
-        
+
         const selectedVals = selectedValueStr ? selectedValueStr.split(',').map(s => s.trim()) : [];
-        
+
         conditions.forEach(cond => {
             const isChecked = selectedVals.includes(cond.name) ? 'checked' : '';
             $container.append(`
@@ -140,10 +140,10 @@ async function populateMedicalConditions(containerSelector, dropdownButtonTextSe
                 </div>
             `);
         });
-        
+
         updateDropdownButtonText(containerSelector, dropdownButtonTextSelector);
-        
-        $container.off('change', '.condition-checkbox').on('change', '.condition-checkbox', function() {
+
+        $container.off('change', '.condition-checkbox').on('change', '.condition-checkbox', function () {
             updateDropdownButtonText(containerSelector, dropdownButtonTextSelector);
         });
     } catch (err) {
@@ -153,10 +153,10 @@ async function populateMedicalConditions(containerSelector, dropdownButtonTextSe
 
 function updateDropdownButtonText(containerSelector, dropdownButtonTextSelector) {
     const selected = [];
-    $(`${containerSelector} .condition-checkbox:checked`).each(function() {
+    $(`${containerSelector} .condition-checkbox:checked`).each(function () {
         selected.push($(this).val());
     });
-    
+
     const $btnText = $(dropdownButtonTextSelector);
     if (selected.length > 0) {
         selected.sort();
@@ -167,14 +167,14 @@ function updateDropdownButtonText(containerSelector, dropdownButtonTextSelector)
 }
 
 // Toggle password visibility handler
-$(document).on('click', '.toggle-password', function() {
+$(document).on('click', '.toggle-password', function () {
     const $btn = $(this);
     const $input = $btn.closest('.input-group').find('input');
     if ($input.length === 0) return;
-    
+
     const isPassword = $input.attr('type') === 'password';
     $input.attr('type', isPassword ? 'text' : 'password');
-    
+
     if (isPassword) {
         $btn.html(`
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye-slash" viewBox="0 0 16 16">
@@ -284,7 +284,7 @@ async function handleGoogleCallback(response) {
         const res = await fetch(`${API_BASE_URL}/auth/google`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 token: response.credential,
                 is_register: isRegisterPage
             })
@@ -761,12 +761,12 @@ $(document).ready(function () {
     // --- PROFILE / ONBOARDING LOGIC ---
     $('#onboardingForm').submit(async function (e) {
         e.preventDefault();
-        
+
         const illnessesList = [];
-        $('#illnessesOptionsContainer .condition-checkbox:checked').each(function() {
+        $('#illnessesOptionsContainer .condition-checkbox:checked').each(function () {
             illnessesList.push($(this).val());
         });
-        
+
         const profileData = {
             height_cm: parseFloat($('#height_cm').val()),
             weight_kg: parseFloat($('#weight_kg').val()),
@@ -798,7 +798,11 @@ $(document).ready(function () {
 
             showToast(`Profile Saved! Your daily calorie target is ${data.daily_calorie_goal} kcal.`);
             setTimeout(() => {
-                window.location.href = "/index.html";
+                if (isUpdate) {
+                    window.location.href = "profile.html";
+                } else {
+                    window.location.href = "/index.html";
+                }
             }, 2000);
         } catch (err) {
             console.error(err);
@@ -807,129 +811,154 @@ $(document).ready(function () {
         }
     });
 
-    // Load Profile Data if on Profile page
-    if (window.location.pathname.includes('profile.html')) {
-        fetchWithAuth(`${API_BASE_URL}/profile/`)
-            .then(res => res.json())
-            .then(data => {
-                $('#height_cm').val(data.height_cm);
-                $('#weight_kg').val(data.weight_kg);
-                $('#target_weight_kg').val(data.target_weight_kg);
-                populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', data.illnesses);
-                $('#allergies').val(data.allergies);
-            }).catch(err => {
-                console.log("Profile not found or error", err);
-                populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', '');
-            });
-
-        // Load User Basic Info
+    // Load Profile Data if on Profile page or sub-pages
+    if (window.location.pathname.includes('profile')) {
+        // 1. Load User Basic Info
         fetchWithAuth(`${API_BASE_URL}/users/me`)
             .then(res => res.json())
             .then(data => {
-                $('#profileFirstName').val(data.first_name || '');
-                $('#profileLastName').val(data.last_name || '');
-                $('#profileMiddleInitial').val(data.middle_initial || '');
-                $('#profileEmail').val(data.email);
-            }).catch(err => console.log("User info not found or error", err));
+                // Populate settings menu details
+                if ($('#profileMenuContainer').length > 0) {
+                    const fullName = `${data.first_name || ''} ${data.middle_initial ? data.middle_initial + '. ' : ''}${data.last_name || ''}`.trim() || 'User Profile';
+                    $('#profileFullNameDisplay').text(fullName);
+                    $('#profileEmailDisplay').text(data.email || '');
+
+                    const initials = ((data.first_name ? data.first_name[0] : '') + (data.last_name ? data.last_name[0] : '')).toUpperCase() || 'U';
+                    $('#profileAvatarInitials').text(initials);
+                }
+
+                // Populate basic info form
+                if ($('#profileInfoForm').length > 0) {
+                    $('#profileFirstName').val(data.first_name || '');
+                    $('#profileLastName').val(data.last_name || '');
+                    $('#profileMiddleInitial').val(data.middle_initial || '');
+                    $('#profileEmail').val(data.email);
+                }
+            }).catch(err => console.log("User info error", err));
+
+        // 2. Load User Profile Metrics Info
+        fetchWithAuth(`${API_BASE_URL}/profile/`)
+            .then(res => res.json())
+            .then(data => {
+                // Populate metrics details
+                if ($('#onboardingForm').length > 0) {
+                    $('#height_cm').val(data.height_cm);
+                    $('#weight_kg').val(data.weight_kg);
+                    $('#target_weight_kg').val(data.target_weight_kg);
+                    populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', data.illnesses);
+                    $('#allergies').val(data.allergies);
+                }
+            }).catch(err => {
+                console.log("Profile not found or error", err);
+                if ($('#onboardingForm').length > 0) {
+                    populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', '');
+                }
+            });
 
         // Handle Basic Info Update
-        $('#profileInfoForm').submit(async function (e) {
-            e.preventDefault();
-            const btn = $('#saveBasicInfoBtn');
-            btn.prop('disabled', true).text('Saving...');
+        if ($('#profileInfoForm').length > 0) {
+            $('#profileInfoForm').submit(async function (e) {
+                e.preventDefault();
+                const btn = $('#saveBasicInfoBtn');
+                btn.prop('disabled', true).text('Saving...');
 
-            try {
-                const res = await fetchWithAuth(`${API_BASE_URL}/users/me/update`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        first_name: $('#profileFirstName').val(),
-                        last_name: $('#profileLastName').val(),
-                        middle_initial: $('#profileMiddleInitial').val() || null,
-                        email: $('#profileEmail').val()
-                    })
-                });
+                try {
+                    const res = await fetchWithAuth(`${API_BASE_URL}/users/me/update`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            first_name: $('#profileFirstName').val(),
+                            last_name: $('#profileLastName').val(),
+                            middle_initial: $('#profileMiddleInitial').val() || null,
+                            email: $('#profileEmail').val()
+                        })
+                    });
 
-                if (!res.ok) {
-                    const errInfo = await res.json();
-                    throw new Error(errInfo.detail || "Failed to save info");
+                    if (!res.ok) {
+                        const errInfo = await res.json();
+                        throw new Error(errInfo.detail || "Failed to save info");
+                    }
+                    showToast("Basic Information updated successfully!");
+                } catch (err) {
+                    showToast(err.message, 'danger');
+                } finally {
+                    btn.prop('disabled', false).text('Save Basic Info');
                 }
-                showToast("Basic Information updated successfully!");
-            } catch (err) {
-                showToast(err.message, 'danger');
-            } finally {
-                btn.prop('disabled', false).text('Save Basic Info');
-            }
-        });
+            });
+        }
 
         // Handle Password Update
-        $('#changePasswordForm').submit(async function (e) {
-            e.preventDefault();
-            const currentPw = $('#currentPassword').val();
-            const newPw = $('#newPassword').val();
-            const confirmPw = $('#confirmNewPassword').val();
+        if ($('#changePasswordForm').length > 0) {
+            $('#changePasswordForm').submit(async function (e) {
+                e.preventDefault();
+                const currentPw = $('#currentPassword').val();
+                const newPw = $('#newPassword').val();
+                const confirmPw = $('#confirmNewPassword').val();
 
-            if (newPw !== confirmPw) {
-                showToast("New passwords do not match!", 'danger');
-                return;
-            }
-
-            if (!isStrongPassword(newPw)) {
-                showToast("Please use a strong password that meets all requirements.", 'danger');
-                return;
-            }
-
-            const btn = $('#changePasswordBtn');
-            btn.prop('disabled', true).text('Updating...');
-
-            try {
-                const res = await fetchWithAuth(`${API_BASE_URL}/users/me/password`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        current_password: currentPw,
-                        new_password: newPw
-                    })
-                });
-
-                if (!res.ok) {
-                    const errInfo = await res.json();
-                    throw new Error(errInfo.detail || "Failed to update password");
+                if (newPw !== confirmPw) {
+                    showToast("New passwords do not match!", 'danger');
+                    return;
                 }
 
-                showToast("Password updated successfully!");
-                $('#changePasswordForm')[0].reset();
-            } catch (err) {
-                showToast(err.message, 'danger');
-            } finally {
-                btn.prop('disabled', false).text('Change Password');
-            }
-        });
-
-        // Handle Profile Deletion
-        $('#confirmDeleteProfileBtn').click(async function () {
-            const btn = $(this);
-            const originalText = btn.text();
-            btn.prop('disabled', true).text('Deleting...');
-
-            try {
-                const res = await fetchWithAuth(`${API_BASE_URL}/users/me`, {
-                    method: 'DELETE',
-                });
-
-                if (!res.ok) {
-                    const errInfo = await res.json();
-                    throw new Error(errInfo.detail || "Failed to delete account");
+                if (!isStrongPassword(newPw)) {
+                    showToast("Please use a strong password that meets all requirements.", 'danger');
+                    return;
                 }
 
-                // Clean up and redirect to login
-                removeToken();
-                window.location.href = '/login.html';
-            } catch (err) {
-                showToast(err.message, 'danger');
-                btn.prop('disabled', false).text(originalText);
-            }
-        });
+                const btn = $('#changePasswordBtn');
+                btn.prop('disabled', true).text('Updating...');
+
+                try {
+                    const res = await fetchWithAuth(`${API_BASE_URL}/users/me/password`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            current_password: currentPw,
+                            new_password: newPw
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const errInfo = await res.json();
+                        throw new Error(errInfo.detail || "Failed to update password");
+                    }
+
+                    showToast("Password updated successfully!");
+                    $('#changePasswordForm')[0].reset();
+                } catch (err) {
+                    showToast(err.message, 'danger');
+                } finally {
+                    btn.prop('disabled', false).text('Change Password');
+                }
+            });
+        }
+
+        // Handle Profile Deletion (only runs on profile.html menu page)
+        if ($('#confirmDeleteProfileBtn').length > 0) {
+            $('#confirmDeleteProfileBtn').click(async function () {
+                const btn = $(this);
+                const originalText = btn.text();
+                btn.prop('disabled', true).text('Deleting...');
+
+                try {
+                    const res = await fetchWithAuth(`${API_BASE_URL}/users/me`, {
+                        method: 'DELETE',
+                    });
+
+                    if (!res.ok) {
+                        const errInfo = await res.json();
+                        throw new Error(errInfo.detail || "Failed to delete account");
+                    }
+
+                    // Clean up and redirect to login
+                    removeToken();
+                    window.location.href = '/login.html';
+                } catch (err) {
+                    showToast(err.message, 'danger');
+                    btn.prop('disabled', false).text(originalText);
+                }
+            });
+        }
     }
 
 
