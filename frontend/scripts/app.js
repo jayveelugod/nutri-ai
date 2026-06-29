@@ -544,12 +544,86 @@ async function loadDashboard() {
 }
 
 // --- NOTIFICATIONS ---
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function configurePushSubscription() {
+    if (!('serviceWorker' in navigator)) return;
+    if (!('PushManager' in window)) return;
+
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        
+        // 1. Get public VAPID key from backend
+        const keyRes = await fetchWithAuth(`${API_BASE_URL}/push/public-key`);
+        if (!keyRes.ok) {
+            console.error("Failed to fetch push public key");
+            return;
+        }
+        const { public_key } = await keyRes.json();
+        
+        // 2. Check permission first
+        if (Notification.permission !== 'granted') {
+            return;
+        }
+
+        const subscribeOptions = {
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(public_key)
+        };
+
+        const subscription = await reg.pushManager.subscribe(subscribeOptions);
+        
+        // Extract subscription keys
+        const subJSON = subscription.toJSON();
+        const subData = {
+            endpoint: subJSON.endpoint,
+            p256dh: subJSON.keys.p256dh,
+            auth: subJSON.keys.auth
+        };
+
+        // 3. Send subscription details to backend
+        const saveRes = await fetchWithAuth(`${API_BASE_URL}/push/subscribe`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(subData)
+        });
+
+        if (saveRes.ok) {
+            console.log("Web Push subscription saved to backend successfully.");
+        } else {
+            console.error("Failed to save Web Push subscription to backend.");
+        }
+    } catch (err) {
+        console.error("Error setting up Web Push subscription:", err);
+    }
+}
+
 async function requestNotificationPermission() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
         try {
-            await Notification.requestPermission();
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                await configurePushSubscription();
+            }
         } catch (e) { console.error(e); }
+    } else if (Notification.permission === 'granted') {
+        await configurePushSubscription();
     }
 }
 
@@ -625,6 +699,7 @@ async function loadReminders() {
 
             // Setup notifications if permission is granted
             if (Notification.permission === 'granted') {
+                configurePushSubscription();
                 setupMealNotifications(data);
             }
         }

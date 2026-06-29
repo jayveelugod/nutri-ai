@@ -10,6 +10,9 @@ from datetime import datetime
 from typing import List, Optional
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+import json
+from pywebpush import webpush, WebPushException
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Vercel deployment fix: add current directory to sys.path so it can find sibling modules 
 # (auth, crud, models, etc.) even when invoked from the repository root.
@@ -75,6 +78,133 @@ except Exception as e:
     print(f"Seeding warning (handled): {e}")
 finally:
     db_seed.close()
+
+# --- WEB PUSH & SCHEDULER SETUP ---
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
+VAPID_CLAIMS_EMAIL = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:nutriai@example.com")
+
+def send_scheduled_reminders():
+    from db.database import SessionLocal
+    from datetime import datetime, timedelta
+    
+    db = SessionLocal()
+    try:
+        # Get current time in PH timezone (UTC+8)
+        current_ph_time = datetime.utcnow() + timedelta(hours=8)
+        current_hour = current_ph_time.hour
+        current_minute = current_ph_time.minute
+        current_total_min = current_hour * 60 + current_minute
+        
+        subs = crud.get_all_push_subscriptions(db)
+        if not subs:
+            return
+            
+        from collections import defaultdict
+        user_subs = defaultdict(list)
+        for s in subs:
+            user_subs[s.user_id].append(s)
+            
+        for user_id, subscriptions in user_subs.items():
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+            if not user:
+                continue
+                
+            # Compute smart reminders based on the user's meal times
+            logs = crud.get_food_logs_by_user(db, user_id=user.id, limit=50)
+            meal_times = {"Breakfast": [], "Lunch": [], "Dinner": []}
+            for log in logs:
+                if log.meal_type in meal_times:
+                    hour_float = log.logged_at.hour + log.logged_at.minute / 60.0
+                    meal_times[log.meal_type].append(hour_float)
+            
+            reminders = {}
+            default_map = {"Breakfast": "08:00 AM", "Lunch": "12:30 PM", "Dinner": "07:00 PM"}
+            for meal in ["Breakfast", "Lunch", "Dinner"]:
+                times = meal_times[meal]
+                if times:
+                    avg_time = sum(times) / len(times)
+                    h = int(avg_time)
+                    m = int((avg_time - h) * 60)
+                    ampm = "AM" if h < 12 else "PM"
+                    display_h = h % 12
+                    if display_h == 0:
+                        display_h = 12
+                    reminders[meal] = f"{display_h:02d}:{m:02d} {ampm}"
+                else:
+                    reminders[meal] = default_map[meal]
+                    
+            for meal, time_str in reminders.items():
+                try:
+                    parts = time_str.split()
+                    if len(parts) != 2:
+                        continue
+                    time_part, ampm = parts[0], parts[1].upper()
+                    hm = time_part.split(':')
+                    if len(hm) != 2:
+                        continue
+                    h = int(hm[0])
+                    m = int(hm[1])
+                    if ampm == "PM" and h < 12:
+                        h += 12
+                    if ampm == "AM" and h == 12:
+                        h = 0
+                        
+                    meal_total_min = h * 60 + m
+                    diff_min = meal_total_min - current_total_min
+                    
+                    should_notify = False
+                    message_body = ""
+                    
+                    if diff_min == 30:
+                        should_notify = True
+                        message_body = f"Your {meal} is in 30 minutes! Time to prepare. ⏳"
+                    elif diff_min == 15:
+                        should_notify = True
+                        message_body = f"Your {meal} is in 15 minutes! Get ready. 🥗"
+                    elif diff_min == 0:
+                        should_notify = True
+                        message_body = f"It's time for your {meal}! Don't forget to log it. 🍽️"
+                        
+                    if should_notify:
+                        title = f"NutriAI {meal} Reminder"
+                        payload = {
+                            "title": title,
+                            "body": message_body,
+                            "url": "/index.html"
+                        }
+                        for sub in subscriptions:
+                            try:
+                                webpush(
+                                    subscription_info={
+                                        "endpoint": sub.endpoint,
+                                        "keys": {
+                                            "p256dh": sub.p256dh_key,
+                                            "auth": sub.auth_key
+                                        }
+                                    },
+                                    data=json.dumps(payload),
+                                    vapid_private_key=VAPID_PRIVATE_KEY,
+                                    vapid_claims={"sub": VAPID_CLAIMS_EMAIL},
+                                    ttl=3600
+                                )
+                            except WebPushException as ex:
+                                print(f"WebPushException for sub {sub.id}: {ex}")
+                                if ex.response is not None and ex.response.status_code in [404, 410]:
+                                    crud.delete_push_subscription(db, sub.endpoint)
+                            except Exception as e:
+                                print(f"Failed to send push: {e}")
+                except Exception as e:
+                    print(f"Error checking reminder for user {user.id}, meal {meal}: {e}")
+    except Exception as e:
+        print(f"Scheduler execution error: {e}")
+    finally:
+        db.close()
+
+# Start scheduler
+scheduler = BackgroundScheduler(timezone="Asia/Manila")
+scheduler.add_job(send_scheduled_reminders, 'cron', minute='*')
+scheduler.start()
 
 app = FastAPI(
     title="NutriAI Backend API",
@@ -407,6 +537,63 @@ def get_smart_reminders(current_user: models.User = Depends(auth.get_current_use
             reminders[meal] = default_map[meal]
             
     return reminders
+
+# --- WEB PUSH ENDPOINTS ---
+@app.post("/api/push/subscribe")
+def subscribe_push(sub: schemas.PushSubscriptionCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    db_sub = crud.save_push_subscription(db, user_id=current_user.id, sub_in=sub)
+    return {"status": "success", "subscription_id": db_sub.id}
+
+@app.delete("/api/push/unsubscribe")
+def unsubscribe_push(endpoint: str, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    crud.delete_push_subscription(db, endpoint=endpoint)
+    return {"status": "success"}
+
+@app.get("/api/push/public-key")
+def get_vapid_public_key():
+    return {"public_key": VAPID_PUBLIC_KEY}
+
+@app.post("/api/push/test")
+def test_push_notification(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    subs = crud.get_push_subscriptions_for_user(db, user_id=current_user.id)
+    if not subs:
+        raise HTTPException(status_code=400, detail="No active push subscriptions found for this user.")
+        
+    payload = {
+        "title": "NutriAI Test Notification",
+        "body": "It works! Push notifications are successfully configured. 🎉",
+        "url": "/index.html"
+    }
+    
+    sent_count = 0
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {
+                        "p256dh": sub.p256dh_key,
+                        "auth": sub.auth_key
+                    }
+                },
+                data=json.dumps(payload),
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CLAIMS_EMAIL},
+                ttl=3600
+            )
+            sent_count += 1
+        except WebPushException as ex:
+            print(f"Test WebPushException for sub {sub.id}: {ex}")
+            if ex.response is not None and ex.response.status_code in [404, 410]:
+                crud.delete_push_subscription(db, sub.endpoint)
+        except Exception as e:
+            print(f"Failed to send test push: {e}")
+            
+    return {"status": "success", "sent_count": sent_count}
+
+@app.on_event("shutdown")
+def shutdown_event():
+    scheduler.shutdown()
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

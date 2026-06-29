@@ -161,6 +161,7 @@ def delete_user_data(db: Session, user_id: str):
     db.query(models.FoodLog).filter(models.FoodLog.user_id == user_id).delete(synchronize_session=False)
     db.query(models.WeightHistory).filter(models.WeightHistory.user_id == user_id).delete(synchronize_session=False)
     db.query(models.MedicalProfile).filter(models.MedicalProfile.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.PushSubscription).filter(models.PushSubscription.user_id == user_id).delete(synchronize_session=False)
     
     # 3. Hard delete the root user record
     db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session=False)
@@ -169,3 +170,33 @@ def delete_user_data(db: Session, user_id: str):
     db.commit()
     
     return image_urls
+
+# --- PUSH SUBSCRIPTIONS CRUD ---
+def save_push_subscription(db: Session, user_id: str, sub_in: schemas.PushSubscriptionCreate):
+    # Check if this endpoint is already registered (can be by the same or a different user)
+    db_sub = db.query(models.PushSubscription).filter(models.PushSubscription.endpoint == sub_in.endpoint).first()
+    if db_sub:
+        db_sub.user_id = user_id
+        db_sub.p256dh_key = sub_in.p256dh
+        db_sub.auth_key = sub_in.auth
+    else:
+        db_sub = models.PushSubscription(
+            user_id=user_id,
+            endpoint=sub_in.endpoint,
+            p256dh_key=sub_in.p256dh,
+            auth_key=sub_in.auth
+        )
+        db.add(db_sub)
+    db.commit()
+    db.refresh(db_sub)
+    return db_sub
+
+def delete_push_subscription(db: Session, endpoint: str):
+    db.query(models.PushSubscription).filter(models.PushSubscription.endpoint == endpoint).delete(synchronize_session=False)
+    db.commit()
+
+def get_push_subscriptions_for_user(db: Session, user_id: str):
+    return db.query(models.PushSubscription).filter(models.PushSubscription.user_id == user_id).all()
+
+def get_all_push_subscriptions(db: Session):
+    return db.query(models.PushSubscription).all()

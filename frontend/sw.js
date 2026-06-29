@@ -3,8 +3,8 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/assets/style.css',
-  'app.js',
-  'manifest.json'
+  '/scripts/app.js',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', event => {
@@ -18,7 +18,6 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(response => {
-      // return cached version or fetch from network
       return response || fetch(event.request);
     })
   );
@@ -55,9 +54,7 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       const targetUrl = event.notification.data.url;
-      // Check if there is already a window open with this app
       for (const client of clientList) {
-        // Match base domain or relative url
         if ('focus' in client) {
           return client.focus();
         }

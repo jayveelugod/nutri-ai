@@ -21,6 +21,7 @@ class User(Base):
     profile = relationship("MedicalProfile", back_populates="user", uselist=False)
     logs = relationship("FoodLog", back_populates="user")
     weight_history = relationship("WeightHistory", back_populates="user")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def name(self) -> str:
@@ -93,6 +94,19 @@ class WeightHistory(Base):
     logged_at = Column(DateTime, default=get_ph_time)
 
     user = relationship("User", back_populates="weight_history")
+
+class PushSubscription(Base):
+    """Stores Web Push subscription info so the server can send notifications."""
+    __tablename__ = "push_subscriptions"
+
+    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"))
+    endpoint = Column(Text, nullable=False)
+    p256dh_key = Column(Text, nullable=False)
+    auth_key = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=get_ph_time)
+
+    user = relationship("User", back_populates="push_subscriptions")
 
 class MedicalCondition(Base):
     __tablename__ = "medical_conditions"

@@ -116,3 +116,18 @@ class WeightHistoryResponse(WeightHistoryBase):
 
     class Config:
         from_attributes = True
+
+# PUSH SUBSCRIPTION SCHEMAS
+class PushSubscriptionCreate(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+class PushSubscriptionResponse(BaseModel):
+    id: str
+    user_id: str
+    endpoint: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
