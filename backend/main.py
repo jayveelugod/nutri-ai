@@ -591,6 +591,12 @@ def test_push_notification(current_user: models.User = Depends(auth.get_current_
             
     return {"status": "success", "sent_count": sent_count}
 
+@app.get("/api/push/cron")
+def push_cron_trigger():
+    """Trigger scheduled reminder checks (useful for serverless environments like Vercel)."""
+    send_scheduled_reminders()
+    return {"status": "success", "message": "Scheduled reminder check triggered successfully."}
+
 @app.on_event("shutdown")
 def shutdown_event():
     scheduler.shutdown()
