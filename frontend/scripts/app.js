@@ -565,7 +565,7 @@ async function configurePushSubscription() {
 
     try {
         const reg = await navigator.serviceWorker.ready;
-        
+
         // 1. Get public VAPID key from backend
         const keyRes = await fetchWithAuth(`${API_BASE_URL}/push/public-key`);
         if (!keyRes.ok) {
@@ -573,7 +573,7 @@ async function configurePushSubscription() {
             return;
         }
         const { public_key } = await keyRes.json();
-        
+
         // 2. Check permission first
         if (Notification.permission !== 'granted') {
             return;
@@ -585,7 +585,7 @@ async function configurePushSubscription() {
         };
 
         const subscription = await reg.pushManager.subscribe(subscribeOptions);
-        
+
         // Extract subscription keys
         const subJSON = subscription.toJSON();
         const subData = {
@@ -627,18 +627,19 @@ async function requestNotificationPermission() {
     }
 }
 
-function showLocalNotification(title, body) {
+async function showLocalNotification(title, body) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     // Prefer service worker showNotification for better mobile PWA support
-    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-        navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification(title, { body: body, badge: '/favicon.ico' });
-        }).catch(() => {
-            new Notification(title, { body: body });
+    try {
+        const reg = await navigator.serviceWorker.ready;
+
+        return reg.showNotification(title, {
+            body,
+            badge: '/favicon.ico'
         });
-    } else {
-        new Notification(title, { body: body });
+    } catch (e) {
+        new Notification(title, { body });
     }
 }
 

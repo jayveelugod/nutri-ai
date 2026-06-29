@@ -2,7 +2,7 @@
   "name": "NutriAI - Wellness Tracking",
   "short_name": "NutriAI",
   "description": "A smart nutrition and wellness progressive web app.",
-  "start_url": "/index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#198754",
