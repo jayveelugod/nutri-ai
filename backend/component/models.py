@@ -108,6 +108,24 @@ class PushSubscription(Base):
 
     user = relationship("User", back_populates="push_subscriptions")
 
+class FoodAnalysisCache(Base):
+    """Caches Gemini AI analysis results keyed by image hash to avoid duplicate API calls."""
+    __tablename__ = "food_analysis_cache"
+
+    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    image_hash = Column(String(64), unique=True, index=True, nullable=False)  # SHA-256 hex digest
+    food_name = Column(String(255))
+    calories = Column(Integer)
+    protein_g = Column(Float)
+    carbs_g = Column(Float)
+    fat_g = Column(Float)
+    vitamin_c_mg = Column(Float, default=0.0)
+    calcium_mg = Column(Float, default=0.0)
+    iron_mg = Column(Float, default=0.0)
+    caution_warning = Column(Text, nullable=True)
+    image_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=get_ph_time)
+
 class MedicalCondition(Base):
     __tablename__ = "medical_conditions"
 

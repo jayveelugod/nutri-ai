@@ -119,7 +119,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-success w-100 rounded-pill py-3 fw-bold shadow-sm" id="analyzeBtn">
-                    Analyze Food & Log
+                    Analyze Food
                 </button>
             </form>
         </div>
@@ -175,8 +175,15 @@
                 </div>
             </div>
 
-            <button class="btn btn-outline-success w-100 rounded-pill mt-4 fw-bold"
-                onclick="window.location.href='index.html'">Back to Dashboard</button>
+            <!-- Action Buttons -->
+            <div class="d-flex flex-column gap-2 mt-4">
+                <button type="button" class="btn btn-success w-100 rounded-pill fw-bold" id="saveLogBtn">Save
+                    Log</button>
+                <button type="button" class="btn btn-outline-danger w-100 rounded-pill fw-bold"
+                    id="newRetakeBtn">Retake</button>
+                <button type="button" class="btn btn-outline-secondary w-100 rounded-pill fw-bold"
+                    onclick="window.location.href='index.html'">Back to Dashboard</button>
+            </div>
         </div>
     </div>
 

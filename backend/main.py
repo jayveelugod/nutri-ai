@@ -11,6 +11,7 @@ from typing import List, Optional
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import json
+import hashlib
 from pywebpush import webpush, WebPushException
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -52,6 +53,19 @@ try:
                     text("UPDATE users SET first_name=:fname, last_name=:lname WHERE id=:uid"),
                     {"fname": fname, "lname": lname, "uid": uid}
                 )
+        db_mig.commit()
+except Exception as e:
+    print(f"Migration warning (handled): {e}")
+finally:
+    db_mig.close()
+
+# Migration helper to add image_url to food_analysis_cache if it doesn't exist
+db_mig = SessionLocal()
+try:
+    res = db_mig.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='food_analysis_cache' AND column_name='image_url'"))
+    if not res.fetchone():
+        print("Migrating food_analysis_cache table: adding image_url column...")
+        db_mig.execute(text("ALTER TABLE food_analysis_cache ADD COLUMN image_url VARCHAR(500)"))
         db_mig.commit()
 except Exception as e:
     print(f"Migration warning (handled): {e}")
@@ -444,10 +458,33 @@ async def analyze_food(
     image_bytes = None
     mime_type = None
     image_url = None
+    image_hash = None
     
     if image:
         image_bytes = await image.read()
         mime_type = image.content_type
+        
+        # Generate SHA-256 hash of image for cache lookup
+        image_hash = hashlib.sha256(image_bytes).hexdigest()
+        
+        # Check cache first — if this exact image was analyzed before, return cached result
+        cached = crud.get_cached_analysis(db, image_hash=image_hash)
+        if cached:
+            print(f"Cache HIT for image hash {image_hash[:12]}... Skipping Gemini API call.")
+            analysis = {
+                "food_name": cached.food_name,
+                "calories": cached.calories,
+                "protein_g": cached.protein_g,
+                "carbs_g": cached.carbs_g,
+                "fat_g": cached.fat_g,
+                "vitamin_c_mg": cached.vitamin_c_mg,
+                "calcium_mg": cached.calcium_mg,
+                "iron_mg": cached.iron_mg,
+                "caution_warning": cached.caution_warning,
+                "image_url": cached.image_url,
+                "cached": True
+            }
+            return analysis
         
         # Prepare Vercel Blob upload filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -492,6 +529,14 @@ async def analyze_food(
         mime_type=mime_type, 
         medical_profile=medical_data
     )
+    
+    # Cache the result if this was an image analysis
+    if image_hash and analysis.get("food_name") != "Error Processing":
+        try:
+            crud.save_cached_analysis(db, image_hash=image_hash, analysis=analysis, image_url=image_url)
+            print(f"Cache SAVED for image hash {image_hash[:12]}...")
+        except Exception as e:
+            print(f"Cache save warning (non-critical): {e}")
     
     # Inject image_url so frontend can capture it and send it to POST /logs/
     analysis["image_url"] = image_url

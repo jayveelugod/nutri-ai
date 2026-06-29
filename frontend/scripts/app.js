@@ -1260,6 +1260,7 @@ $(document).ready(function () {
     // --- SCANNER LOGIC (WebRTC) ---
     let selectedImageFile = null;
     let localStream = null;
+    let latestAnalysisResult = null;
 
     if (window.location.pathname.includes('scanner.html')) {
         const video = document.getElementById('cameraStream');
@@ -1517,28 +1518,48 @@ $(document).ready(function () {
             $('#textInputContainer').addClass('d-none');
         });
 
-        $(retakeBtn).click(function () {
-            selectedImageFile = null;
-            $(imagePreview).hide();
+        function resetScanner() {
+            // Stop any existing tracks/camera
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            if (scanningBarcode) {
+                Quagga.stop();
+                scanningBarcode = false;
+            }
+            if (barcodePauseTimer) clearTimeout(barcodePauseTimer);
 
-            // Restore lower sections
+            selectedImageFile = null;
+            latestAnalysisResult = null;
+
+            // Reset UI inputs
+            $('#foodImage').val('');
+            $('#fallbackCameraInput').val('');
+            $('#foodText').val('');
+            $('#barcodeResult').addClass('d-none').text('');
+            $(imagePreview).hide();
+            $('#retakeBtn').addClass('d-none');
+
+            // Hide results & loading, show form
+            $('#scanLoading').addClass('d-none');
+            $('#scanResult').addClass('d-none');
+            $('#aiScanForm').show();
+
+            // Restore inputs
             $('#uploadInputContainer').removeClass('d-none');
             $('#textInputContainer').removeClass('d-none');
 
-            if (!localStream) {
-                // If it was HTTP fallback
-                $('#foodImage').val('');
-                $('#fallbackCameraInput').val('');
-                $('#cameraFallbackOverlay').removeClass('d-none').addClass('d-flex');
-                $('#cameraFrame').addClass('d-none');
-                $(captureBtn).addClass('d-none');
-            } else {
+            // Restart Camera
+            if (window.location.pathname.includes('scanner.html')) {
                 $(video).show();
                 $(captureBtn).show();
-                startContinuousBarcodeScan();
+                startCamera();
             }
-            $(retakeBtn).addClass('d-none');
-        });
+        }
+
+        $(retakeBtn).click(resetScanner);
+        $('#newRetakeBtn').click(resetScanner);
     }
 
     // Fallback file input logic
@@ -1589,6 +1610,9 @@ $(document).ready(function () {
             if (!res.ok) throw new Error("Failed to analyze");
             const data = await res.json();
 
+            // Store result in memory to save later
+            latestAnalysisResult = data;
+
             $('#scanLoading').addClass('d-none');
             $('#scanResult').removeClass('d-none');
 
@@ -1601,28 +1625,6 @@ $(document).ready(function () {
             if ($('#resVitC').length) $('#resVitC').text(data.vitamin_c_mg || 0);
             if ($('#resCalcium').length) $('#resCalcium').text(data.calcium_mg || 0);
             if ($('#resIron').length) $('#resIron').text(data.iron_mg || 0);
-
-            // Save to DB
-            const mealType = $('#mealType').val() || "Snack";
-            const logData = {
-                meal_type: mealType,
-                food_name: data.food_name,
-                calories: data.calories,
-                protein_g: data.protein_g,
-                carbs_g: data.carbs_g,
-                fat_g: data.fat_g,
-                vitamin_c_mg: data.vitamin_c_mg || 0,
-                calcium_mg: data.calcium_mg || 0,
-                iron_mg: data.iron_mg || 0,
-                image_url: data.image_url, // Ensure URL gets sent to db
-                medical_caution: data.caution_warning || null
-            };
-
-            await fetchWithAuth(`${API_BASE_URL}/logs/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(logData)
-            });
 
             // Handle Medical Caution
             if (data.caution_warning) {
@@ -1641,6 +1643,49 @@ $(document).ready(function () {
             if (window.location.pathname.includes('scanner.html') && !selectedImageFile) {
                 startCamera();
             }
+        }
+    });
+
+    // Save Log Click Handler
+    $('#saveLogBtn').click(async function (e) {
+        e.preventDefault();
+        if (!latestAnalysisResult) return;
+
+        const btn = $(this);
+        btn.prop('disabled', true).text('Saving...');
+
+        const mealType = $('#mealType').val() || "Snack";
+        const logData = {
+            meal_type: mealType,
+            food_name: latestAnalysisResult.food_name,
+            calories: latestAnalysisResult.calories,
+            protein_g: latestAnalysisResult.protein_g,
+            carbs_g: latestAnalysisResult.carbs_g,
+            fat_g: latestAnalysisResult.fat_g,
+            vitamin_c_mg: latestAnalysisResult.vitamin_c_mg || 0,
+            calcium_mg: latestAnalysisResult.calcium_mg || 0,
+            iron_mg: latestAnalysisResult.iron_mg || 0,
+            image_url: latestAnalysisResult.image_url,
+            medical_caution: latestAnalysisResult.caution_warning || null
+        };
+
+        try {
+            const saveRes = await fetchWithAuth(`${API_BASE_URL}/logs/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(logData)
+            });
+            if (!saveRes.ok) throw new Error("Failed to save log");
+            showToast("Food log saved successfully!", "success");
+
+            // Redirect back to dashboard after save
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to save food log.", "danger");
+            btn.prop('disabled', false).text('Save Log');
         }
     });
 
