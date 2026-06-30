@@ -54,6 +54,8 @@ if (Test-Path "$rootDir\requirements.txt") {
         Write-Host "Installing Python dependencies from requirements.txt..." -ForegroundColor Yellow
         .\venv\Scripts\python.exe -m pip install --upgrade pip
         .\venv\Scripts\python.exe -m pip install -r requirements.txt
+        Write-Host "Installing local OCR engines (optional for local environment)..." -ForegroundColor Yellow
+        .\venv\Scripts\python.exe -m pip install rapidocr-onnxruntime
         Write-Host "Python dependencies installed successfully." -ForegroundColor Green
     } else {
         Write-Host "Failed to create virtual environment. You may need to restart your terminal to load the new Python PATH and try again." -ForegroundColor Red
