@@ -52,4 +52,6 @@ urllib3==2.6.3
 uvicorn==0.39.0
 pywebpush==2.3.0
 apscheduler==3.11.3
+Pillow
+
 
