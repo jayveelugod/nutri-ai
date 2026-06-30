@@ -35,6 +35,26 @@
                         <label class="form-label small text-muted">Weight (kg)</label>
                         <input type="number" class="form-control" id="weight_kg" required>
                     </div>
+
+                    <!-- BMI Display Visualizer -->
+                    <div class="col-12 d-none" id="bmiDisplayContainer">
+                        <div class="p-3 rounded-3 bg-light border border-light-subtle bmi-container">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <span class="small text-muted d-block" style="font-size: 0.75rem;">Calculated BMI</span>
+                                    <span class="fs-4 fw-bold text-success" id="bmiValue">-</span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="small text-muted d-block" style="font-size: 0.75rem;">Health Status</span>
+                                    <span class="badge fs-6 px-3 py-2 rounded-pill" id="bmiCategoryBadge">-</span>
+                                </div>
+                            </div>
+                            <div class="progress mt-2 shadow-sm" style="height: 8px;" id="bmiProgressBarContainer">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="bmiProgressBar"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="col-12">
                         <label class="form-label small text-muted">Target Weight (kg)</label>
                         <input type="number" class="form-control" id="target_weight_kg" required>

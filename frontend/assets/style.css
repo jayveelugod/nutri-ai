@@ -248,3 +248,13 @@ body {
     background-color: #f1f3f5 !important;
     transform: scale(0.98);
 }
+
+/* BMI Display Visualizer */
+.bmi-container {
+    transition: all 0.3s ease-in-out;
+    border-radius: 12px;
+}
+
+#bmiProgressBar {
+    transition: width 0.5s ease-in-out, background-color 0.5s ease-in-out;
+}

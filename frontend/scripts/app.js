@@ -166,6 +166,82 @@ function updateDropdownButtonText(containerSelector, dropdownButtonTextSelector)
     }
 }
 
+// --- BMI CALCULATOR UTILITY ---
+function setupBMICalculator() {
+    const $height = $('#height_cm');
+    const $weight = $('#weight_kg');
+    const $container = $('#bmiDisplayContainer');
+    const $value = $('#bmiValue');
+    const $badge = $('#bmiCategoryBadge');
+    const $progressBar = $('#bmiProgressBar');
+
+    if ($height.length === 0 || $weight.length === 0) return;
+
+    function updateBMI() {
+        const heightVal = parseFloat($height.val());
+        const weightVal = parseFloat($weight.val());
+
+        if (isNaN(heightVal) || isNaN(weightVal) || heightVal <= 0 || weightVal <= 0) {
+            $container.addClass('d-none');
+            return;
+        }
+
+        const heightM = heightVal / 100;
+        const bmi = weightVal / (heightM * heightM);
+        const bmiFixed = bmi.toFixed(1);
+
+        $value.text(bmiFixed);
+
+        let category = "";
+        let badgeClass = "";
+        let progressClass = "";
+        let textClass = "";
+        // Map BMI 15 to 40 onto 0 to 100%
+        let percent = Math.min(Math.max(((bmi - 15) / (40 - 15)) * 100, 5), 100);
+
+        if (bmi < 18.5) {
+            category = "Underweight";
+            badgeClass = "bg-info text-dark";
+            progressClass = "bg-info";
+            textClass = "text-info";
+        } else if (bmi < 25) {
+            category = "Normal Weight";
+            badgeClass = "bg-success text-white";
+            progressClass = "bg-success";
+            textClass = "text-success";
+        } else if (bmi < 30) {
+            category = "Overweight";
+            badgeClass = "bg-warning text-dark";
+            progressClass = "bg-warning";
+            textClass = "text-warning";
+        } else {
+            category = "Obese";
+            badgeClass = "bg-danger text-white";
+            progressClass = "bg-danger";
+            textClass = "text-danger";
+        }
+
+        // Update value text color
+        $value.removeClass('text-info text-success text-warning text-danger').addClass(textClass);
+
+        // Update badge classes
+        $badge.removeClass('bg-info text-dark bg-success text-white bg-warning text-dark bg-danger text-white')
+              .addClass(badgeClass).text(category);
+
+        // Update progress bar class and style
+        $progressBar.removeClass('bg-info bg-success bg-warning bg-danger')
+                    .addClass(progressClass).css('width', `${percent}%`).attr('aria-valuenow', percent);
+
+        $container.removeClass('d-none');
+    }
+
+    $height.on('input change', updateBMI);
+    $weight.on('input change', updateBMI);
+
+    // Run initial check
+    updateBMI();
+}
+
 // Toggle password visibility handler
 $(document).on('click', '.toggle-password', function () {
     const $btn = $(this);
@@ -716,6 +792,7 @@ $(document).ready(function () {
     setupPasswordStrengthValidation('#regPassword');
     setupPasswordStrengthValidation('#newPassword');
     setupPasswordStrengthValidation('#forgotNewPassword');
+    setupBMICalculator();
 
     // Populate conditions if on onboarding page
     if (window.location.pathname.includes('onboarding.html')) {
@@ -919,7 +996,7 @@ $(document).ready(function () {
                 // Populate metrics details
                 if ($('#onboardingForm').length > 0) {
                     $('#height_cm').val(data.height_cm);
-                    $('#weight_kg').val(data.weight_kg);
+                    $('#weight_kg').val(data.weight_kg).trigger('change');
                     $('#target_weight_kg').val(data.target_weight_kg);
                     populateMedicalConditions('#illnessesOptionsContainer', '#selectedIllnessesText', data.illnesses);
                     $('#allergies').val(data.allergies);
