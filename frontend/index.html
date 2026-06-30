@@ -245,8 +245,25 @@
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register('/sw.js')
-                        .then(reg => console.log('SW Registered', reg))
+                        .then(reg => {
+                            console.log('SW Registered', reg);
+                            // Eagerly check for service worker file updates on launch
+                            reg.update();
+                            // Check for updates every 1 hour
+                            setInterval(() => {
+                                reg.update();
+                            }, 60 * 60 * 1000);
+                        })
                         .catch(err => console.log('SW Reg Error', err));
+                });
+
+                // Listen for new controller taking over and reload client window automatically
+                let refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!refreshing) {
+                        refreshing = true;
+                        window.location.reload();
+                    }
                 });
             }
         </script>
