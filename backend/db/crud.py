@@ -202,12 +202,18 @@ def get_all_push_subscriptions(db: Session):
     return db.query(models.PushSubscription).all()
 
 # --- FOOD ANALYSIS CACHE CRUD ---
-def get_cached_analysis(db: Session, image_hash: str):
-    return db.query(models.FoodAnalysisCache).filter(models.FoodAnalysisCache.image_hash == image_hash).first()
+def get_cached_analysis(db: Session, image_hash: str, food_text: str = None):
+    normalized_text = (food_text or "").strip()
+    return db.query(models.FoodAnalysisCache).filter(
+        models.FoodAnalysisCache.image_hash == image_hash,
+        models.FoodAnalysisCache.food_text == normalized_text
+    ).first()
 
-def save_cached_analysis(db: Session, image_hash: str, analysis: dict, image_url: str = None):
+def save_cached_analysis(db: Session, image_hash: str, analysis: dict, food_text: str = None, image_url: str = None):
+    normalized_text = (food_text or "").strip()
     db_cache = models.FoodAnalysisCache(
         image_hash=image_hash,
+        food_text=normalized_text,
         food_name=analysis.get("food_name"),
         calories=analysis.get("calories", 0),
         protein_g=analysis.get("protein_g", 0.0),

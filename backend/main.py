@@ -72,6 +72,25 @@ except Exception as e:
 finally:
     db_mig.close()
 
+# Migration helper to add food_text to food_analysis_cache and drop unique constraints
+db_mig = SessionLocal()
+try:
+    res = db_mig.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='food_analysis_cache' AND column_name='food_text'"))
+    if not res.fetchone():
+        print("Migrating food_analysis_cache table: adding food_text column...")
+        db_mig.execute(text("ALTER TABLE food_analysis_cache ADD COLUMN food_text TEXT DEFAULT ''"))
+        db_mig.commit()
+        
+    # Drop unique constraint on image_hash so that same image can be cached with different descriptions
+    db_mig.execute(text("ALTER TABLE food_analysis_cache DROP CONSTRAINT IF EXISTS food_analysis_cache_image_hash_key"))
+    # Re-create simple non-unique index for performance
+    db_mig.execute(text("CREATE INDEX IF NOT EXISTS ix_food_analysis_cache_image_hash ON food_analysis_cache(image_hash)"))
+    db_mig.commit()
+except Exception as e:
+    print(f"Migration warning for food_text (handled): {e}")
+finally:
+    db_mig.close()
+
 # Seed medical conditions if empty
 db_seed = SessionLocal()
 try:
@@ -463,14 +482,17 @@ async def analyze_food(
     if image:
         image_bytes = await image.read()
         mime_type = image.content_type
-        
         # Generate SHA-256 hash of image for cache lookup
         image_hash = hashlib.sha256(image_bytes).hexdigest()
+    elif food_text:
+        # Generate a pseudo-hash from food_text for text-only caching (must fit 64-character limit)
+        image_hash = hashlib.sha256(food_text.strip().lower().encode("utf-8")).hexdigest()
         
-        # Check cache first — if this exact image was analyzed before, return cached result
-        cached = crud.get_cached_analysis(db, image_hash=image_hash)
+    if image_hash:
+        # Check cache first — if this exact input was analyzed before, return cached result
+        cached = crud.get_cached_analysis(db, image_hash=image_hash, food_text=food_text)
         if cached:
-            print(f"Cache HIT for image hash {image_hash[:12]}... Skipping Gemini API call.")
+            print(f"Cache HIT for hash {image_hash[:12]}... Skipping Gemini API call.")
             analysis = {
                 "food_name": cached.food_name,
                 "calories": cached.calories,
@@ -485,7 +507,8 @@ async def analyze_food(
                 "cached": True
             }
             return analysis
-        
+
+    if image:
         # Prepare Vercel Blob upload filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = "".join([c for c in image.filename if c.isalpha() or c.isdigit() or c in (' ', '.', '_', '-')]).rstrip()
@@ -499,7 +522,6 @@ async def analyze_food(
         import requests
         
         # Ensure path contains absolutely no spaces or special non-URL chars
-        # safe_name = "".join(c if c.isalnum() or c in ".-_" else "_" for c in current_user.name)
         blob_path = f"food_logs/{current_user.id}/{filename}".replace("-", "_")
         
         headers = {
@@ -507,14 +529,11 @@ async def analyze_food(
             "Content-Type": mime_type if mime_type else "image/jpeg",
         }
         
-        # Let requests handle the url-encoding securely via `params`
         res = requests.put(
             url = f"https://blob.vercel-storage.com/{blob_path}",
             data=image_bytes, 
             headers=headers
         )
-
-        print(blob_path)
         
         if res.status_code != 200:
             print("Vercel Blob Upload Error:", res.status_code, res.text)
@@ -533,7 +552,7 @@ async def analyze_food(
     # Cache the result if this was an image analysis
     if image_hash and analysis.get("food_name") != "Error Processing":
         try:
-            crud.save_cached_analysis(db, image_hash=image_hash, analysis=analysis, image_url=image_url)
+            crud.save_cached_analysis(db, image_hash=image_hash, analysis=analysis, food_text=food_text, image_url=image_url)
             print(f"Cache SAVED for image hash {image_hash[:12]}...")
         except Exception as e:
             print(f"Cache save warning (non-critical): {e}")
@@ -641,6 +660,15 @@ def push_cron_trigger():
     """Trigger scheduled reminder checks (useful for serverless environments like Vercel)."""
     send_scheduled_reminders()
     return {"status": "success", "message": "Scheduled reminder check triggered successfully."}
+
+@app.on_event("startup")
+def startup_event():
+    # Eagerly initialize OCR engine on server startup to avoid lag on first request
+    try:
+        from component.ai_service import init_ocr_engine
+        init_ocr_engine()
+    except Exception as e:
+        print(f"Startup warning: Failed to initialize OCR engine on startup: {e}")
 
 @app.on_event("shutdown")
 def shutdown_event():

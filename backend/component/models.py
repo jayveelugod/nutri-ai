@@ -109,11 +109,12 @@ class PushSubscription(Base):
     user = relationship("User", back_populates="push_subscriptions")
 
 class FoodAnalysisCache(Base):
-    """Caches Gemini AI analysis results keyed by image hash to avoid duplicate API calls."""
+    """Caches Gemini AI analysis results keyed by image hash and food text to avoid duplicate API calls."""
     __tablename__ = "food_analysis_cache"
 
     id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    image_hash = Column(String(64), unique=True, index=True, nullable=False)  # SHA-256 hex digest
+    image_hash = Column(String(64), index=True, nullable=False)  # SHA-256 hex digest (removed unique=True)
+    food_text = Column(Text, default="", nullable=False)  # Accompanying food text
     food_name = Column(String(255))
     calories = Column(Integer)
     protein_g = Column(Float)
