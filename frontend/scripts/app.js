@@ -1608,8 +1608,8 @@ $(document).ready(function () {
                 body: formData // DO NOT SET CONTENT TYPE FOR FORMDATA!
             });
 
-            if (!res.ok) throw new Error("Failed to analyze");
             const data = await res.json();
+            if (!res.ok) throw new Error(`${data.detail || 'Processing error.'}`);
 
             // Store result in memory to save later
             latestAnalysisResult = data;
@@ -1637,7 +1637,7 @@ $(document).ready(function () {
 
         } catch (err) {
             console.error(err);
-            showToast("Failed to analyze food.", 'danger');
+            showToast(`Failed to analyze food: ${err.message}`, 'danger');
             $('#scanLoading').addClass('d-none');
             $('#aiScanForm').show();
             // Restart camera?

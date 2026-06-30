@@ -2,6 +2,7 @@ import os
 import google.generativeai as genai
 import json
 from dotenv import load_dotenv
+from fastapi import HTTPException
 
 load_dotenv()
 
@@ -76,6 +77,18 @@ def analyze_food_multimodal(food_text: str, image_bytes: bytes, mime_type: str, 
         
     try:
         response = model.generate_content(contents)
+        
+        # Check if the response was blocked by safety filters
+        if not response.parts:
+            block_reason = "Unknown"
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                block_reason = str(response.prompt_feedback.block_reason)
+            print(f"Gemini API: Response blocked. Reason: {block_reason}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"The image or text was blocked by content safety filters (reason: {block_reason}). Please try a different input."
+            )
+        
         result_text = response.text.strip()
         # Clean up if the model wrapped it in markdown
         if result_text.startswith("```json"):
@@ -85,17 +98,45 @@ def analyze_food_multimodal(food_text: str, image_bytes: bytes, mime_type: str, 
             
         parsed_data = json.loads(result_text)
         return parsed_data
+    except HTTPException:
+        raise  # Re-raise our own HTTPExceptions as-is
+    except json.JSONDecodeError as e:
+        print(f"Gemini API: Failed to parse AI response as JSON: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="The AI returned an invalid response. Please try again."
+        )
     except Exception as e:
-        print(f"Gemini API Error: {e}")
-        # Fallback to prevent crash
-        return {
-            "food_name": "Error Processing",
-            "calories": 0,
-            "protein_g": 0.0,
-            "carbs_g": 0.0,
-            "fat_g": 0.0,
-            "vitamin_c_mg": 0.0,
-            "calcium_mg": 0.0,
-            "iron_mg": 0.0,
-            "caution_warning": "Failed to analyze food."
-        }
+        error_type = type(e).__name__
+        error_msg = str(e)
+        print(f"Gemini API Error [{error_type}]: {error_msg}")
+        
+        # Map common google-api-core / generativeai errors to proper status codes
+        status_code = 500
+        detail = "An unexpected error occurred while analyzing the food. Please try again later."
+        
+        error_lower = error_msg.lower()
+        
+        if "429" in error_msg or "resource_exhausted" in error_lower or "rate limit" in error_lower or "quota" in error_lower:
+            status_code = 429
+            detail = "AI service rate limit reached."
+        elif "401" in error_msg or "unauthenticated" in error_lower or "invalid api key" in error_lower:
+            status_code = 401
+            detail = "AI service authentication failed. The API key may be invalid or expired."
+        elif "403" in error_msg or "permission_denied" in error_lower or "forbidden" in error_lower:
+            status_code = 403
+            detail = "AI service access denied. The API key does not have permission for this model or the API key was reported as leaked. Please use another API key."
+        elif "404" in error_msg or "not_found" in error_lower or "model" in error_lower and "not found" in error_lower:
+            status_code = 404
+            detail = "The configured AI model was not found. Please check the GEMINI_MODEL setting."
+        elif "400" in error_msg or "invalid_argument" in error_lower or "invalid" in error_lower:
+            status_code = 400
+            detail = f"Invalid request to AI service: {error_msg}"
+        elif "503" in error_msg or "unavailable" in error_lower:
+            status_code = 503
+            detail = "The AI service is temporarily unavailable. Please try again later."
+        elif "deadline" in error_lower or "timeout" in error_lower:
+            status_code = 504
+            detail = "The AI service took too long to respond. Please try again."
+        
+        raise HTTPException(status_code=status_code, detail=detail)
